@@ -1,0 +1,67 @@
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+
+from app.api.v1.router import api_router
+from app.core.config import get_settings
+from app.core.logging import configure_logging
+from app.database.session import engine
+from app.middleware.security import RateLimitMiddleware, SecurityHeadersMiddleware
+from app.realtime import manager
+from app.webhooks.routes import router as webhook_router
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    configure_logging()
+    yield
+    await engine.dispose()
+
+
+settings = get_settings()
+app = FastAPI(
+    title=settings.app_name,
+    version="0.1.0",
+    openapi_url=f"{settings.api_v1_prefix}/openapi.json",
+    docs_url=f"{settings.api_v1_prefix}/docs",
+    redoc_url=f"{settings.api_v1_prefix}/redoc",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.backend_cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RateLimitMiddleware)
+
+app.include_router(api_router, prefix=settings.api_v1_prefix)
+app.include_router(webhook_router)
+
+
+@app.get("/health")
+async def health() -> dict:
+    return {"status": "ok", "service": settings.app_name}
+
+
+@app.get("/ready")
+async def ready() -> dict:
+    async with engine.connect() as connection:
+        await connection.execute(text("SELECT 1"))
+    return {"status": "ready"}
+
+
+@app.websocket("/ws/events")
+async def websocket_events(websocket: WebSocket) -> None:
+    await manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+

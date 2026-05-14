@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7f8f5;
+  --foreground: #14211b;
+  --card: #ffffff;
+  --card-foreground: #14211b;
+  --muted: #e9ede4;
+  --muted-foreground: #647064;
+  --border: #d9dfd1;
+  --primary: #315c49;
+  --primary-foreground: #f9fbf6;
+  --accent: #c47f5a;
+  --accent-foreground: #21140f;
+  --success: #2f7d59;
+  --warning: #b7791f;
+  --danger: #b42318;
+}
+
+.dark {
+  --background: #101611;
+  --foreground: #eef3ea;
+  --card: #151f18;
+  --card-foreground: #eef3ea;
+  --muted: #1f2a22;
+  --muted-foreground: #a8b4a8;
+  --border: #2f3b31;
+  --primary: #9bd3b4;
+  --primary-foreground: #0d1510;
+  --accent: #d7a177;
+  --accent-foreground: #1b120b;
+  --success: #77c59b;
+  --warning: #e5b85a;
+  --danger: #f97066;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+  letter-spacing: 0;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+

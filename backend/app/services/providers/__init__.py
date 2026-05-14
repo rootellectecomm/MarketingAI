@@ -1,0 +1,2 @@
+"""Social provider adapters."""
+
