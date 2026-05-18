@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.openai_client import OpenAIDecisionClient
 from app.ai.prompting import PROMPT_VERSION
 from app.ai.rag import RAGKnowledgeBase
-from app.database.session import AsyncSessionLocal
+from app.database.session import get_sessionmaker
 from app.models.entities import (
     AiLog,
     AnalyticsEvent,
@@ -219,7 +219,7 @@ class EventProcessor:
 async def process_webhook_payload(log_id: str, payload: dict, channel: str) -> None:
     processor = EventProcessor()
     provider = get_whatsapp_provider() if channel == "whatsapp" else get_instagram_provider()
-    async with AsyncSessionLocal() as session:
+    async with get_sessionmaker()() as session:
         log = await session.get(WebhookLog, log_id)
         try:
             events = await provider.normalize_event(payload)

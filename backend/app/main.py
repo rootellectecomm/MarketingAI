@@ -7,7 +7,7 @@ from sqlalchemy import text
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
-from app.database.session import engine
+from app.database.session import dispose_engine, get_engine
 from app.middleware.security import RateLimitMiddleware, SecurityHeadersMiddleware
 from app.realtime import manager
 from app.webhooks.routes import router as webhook_router
@@ -17,7 +17,7 @@ from app.webhooks.routes import router as webhook_router
 async def lifespan(app: FastAPI):
     configure_logging()
     yield
-    await engine.dispose()
+    await dispose_engine()
 
 
 settings = get_settings()
@@ -59,9 +59,22 @@ async def health() -> dict:
     return {"status": "ok", "service": settings.app_name}
 
 
+@app.get("/debug/config")
+async def debug_config() -> dict:
+    return {
+        "environment": settings.environment,
+        "database_configured": bool(settings.database_url),
+        "redis_configured": bool(settings.redis_url),
+        "openai_configured": bool(settings.openai_api_key),
+        "meta_app_id_configured": bool(settings.meta_app_id),
+        "meta_app_secret_configured": bool(settings.meta_app_secret),
+        "provider_mode": settings.provider_mode,
+    }
+
+
 @app.get("/ready")
 async def ready() -> dict:
-    async with engine.connect() as connection:
+    async with get_engine().connect() as connection:
         await connection.execute(text("SELECT 1"))
     return {"status": "ready"}
 
