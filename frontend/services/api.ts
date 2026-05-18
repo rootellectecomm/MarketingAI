@@ -1,5 +1,14 @@
 import { campaigns, comments, leads, metrics } from "@/lib/mock-data";
-import type { Campaign, CommentItem, DashboardMetrics, Lead, MetaSyncResult, ProviderStatus, TokenResponse } from "@/types/api";
+import type {
+  BootstrapResponse,
+  Campaign,
+  CommentItem,
+  DashboardMetrics,
+  Lead,
+  MetaSyncResult,
+  ProviderStatus,
+  TokenResponse
+} from "@/types/api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
 const PROVIDER_MODE = process.env.NEXT_PUBLIC_PROVIDER_MODE ?? "facebook_page_backed";
@@ -63,8 +72,7 @@ async function postJson<T>(path: string, body?: unknown): Promise<T> {
   });
   if (!response.ok) {
     handleUnauthorized(response);
-    const detail = await response.text();
-    throw new Error(detail || `Request failed with ${response.status}`);
+    throw new Error(await readApiError(response));
   }
   return (await response.json()) as T;
 }
@@ -73,21 +81,21 @@ async function readApiError(response: Response): Promise<string> {
   const raw = await response.text();
   if (!raw) {
     return response.status === 500
-      ? "Internal Server Error — redeploy the backend and check DATABASE_URL on Vercel."
+      ? "Internal Server Error. Redeploy the backend and check DATABASE_URL on Vercel."
       : `Request failed with ${response.status}`;
   }
   if (raw.startsWith("<")) {
     return response.status === 500
-      ? "Internal Server Error — backend crashed. Check Vercel backend logs and DATABASE_URL."
+      ? "Internal Server Error. Backend crashed. Check Vercel backend logs and DATABASE_URL."
       : `Request failed with ${response.status}`;
   }
   try {
-    const data = JSON.parse(raw) as { detail?: string | Array<{ msg?: string }>; error?: string };
+    const data = JSON.parse(raw) as { detail?: string | Array<{ msg?: string }>; error?: string; fix?: string };
     if (typeof data.detail === "string") {
       return data.detail;
     }
     if (typeof data.error === "string") {
-      return data.error;
+      return data.fix ? `${data.error} ${data.fix}` : data.error;
     }
     if (Array.isArray(data.detail)) {
       return data.detail.map((item) => item.msg ?? JSON.stringify(item)).join("; ");
@@ -98,17 +106,18 @@ async function readApiError(response: Response): Promise<string> {
   }
 }
 
-async function authPost<T>(path: string, body?: unknown, options?: { allowStatuses?: number[] }): Promise<T> {
+async function authProxyPost<T>(path: string, body?: unknown, options?: { allowStatuses?: number[] }): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await fetch(path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body)
+      body: body === undefined ? undefined : JSON.stringify(body),
+      cache: "no-store"
     });
   } catch {
     throw new Error(
-      `Cannot reach backend at ${API_BASE_URL}. Set NEXT_PUBLIC_API_BASE_URL on the frontend Vercel project to https://marketing-ai-gymu.vercel.app/api/v1 and redeploy the backend.`
+      "Cannot reach the frontend auth proxy. Set BACKEND_API_BASE_URL or NEXT_PUBLIC_API_BASE_URL on the frontend Vercel project to https://marketing-ai-gymu.vercel.app/api/v1, then redeploy the frontend."
     );
   }
   if (!response.ok && !options?.allowStatuses?.includes(response.status)) {
@@ -128,15 +137,14 @@ async function resetAdmin(): Promise<void> {
     throw new Error("Cannot reach the reset-admin proxy on this frontend deployment.");
   }
   if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(payload?.error ?? `Admin reset failed with status ${response.status}`);
+    throw new Error(await readApiError(response));
   }
 }
 
 export const api = {
   resetAdmin,
-  bootstrap: () => authPost("/auth/bootstrap", undefined, { allowStatuses: [409] }),
-  login: (email: string, password: string) => authPost<TokenResponse>("/auth/login", { email, password }),
+  bootstrap: () => authProxyPost<BootstrapResponse>("/api/auth/bootstrap", undefined, { allowStatuses: [409] }),
+  login: (email: string, password: string) => authProxyPost<TokenResponse>("/api/auth/login", { email, password }),
   metrics: () => getJson<DashboardMetrics>("/dashboard/metrics", USE_MOCK_DATA ? metrics : emptyMetrics),
   comments: () => getJson<CommentItem[]>("/comments", USE_MOCK_DATA ? comments : []),
   leads: () => getJson<Lead[]>("/leads", USE_MOCK_DATA ? leads : []),

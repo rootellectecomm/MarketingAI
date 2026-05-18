@@ -59,6 +59,11 @@ export type TokenResponse = {
   user: User;
 };
 
+export type BootstrapResponse = {
+  created: boolean;
+  user: User;
+};
+
 export type ProviderStatus = {
   provider_mode: string;
   facebook_ready: boolean;
