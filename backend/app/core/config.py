@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
 
-    backend_cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
+    backend_cors_origins: str = "http://localhost:3000"
     public_base_url: AnyHttpUrl | None = None
 
     database_url: str = "postgresql+asyncpg://rootellect:rootellect@localhost:5432/rootellect"
@@ -62,13 +62,6 @@ class Settings(BaseSettings):
     rate_limit_requests: int = 120
     rate_limit_window_seconds: int = 60
 
-    @field_validator("backend_cors_origins", mode="before")
-    @classmethod
-    def split_cors_origins(cls, value: str | list[str]) -> list[str]:
-        if isinstance(value, str):
-            return [origin.strip() for origin in value.split(",") if origin.strip()]
-        return value
-
     @field_validator("meta_oauth_scopes", mode="before")
     @classmethod
     def split_meta_scopes(cls, value: str | list[str]) -> list[str]:
@@ -80,3 +73,8 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def get_cors_origins(settings: Settings | None = None) -> list[str]:
+    value = (settings or get_settings()).backend_cors_origins
+    return [origin.strip() for origin in value.split(",") if origin.strip()]
