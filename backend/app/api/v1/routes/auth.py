@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -23,16 +23,14 @@ async def bootstrap_admin(session: AsyncSession = Depends(get_session)) -> Boots
             detail=f"Database setup failed. Check DATABASE_URL on Vercel: {exc}",
         ) from exc
 
-    count = await session.scalar(select(func.count()).select_from(User))
-    existing = await session.scalar(select(User).where(User.email == get_settings().admin_email.lower()))
-    if count and existing:
-        return BootstrapResponse(created=False, user=UserRead.model_validate(existing))
-    if count:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Admin already bootstrapped")
-
     settings = get_settings()
+    admin_email = settings.admin_email.lower()
+    existing = await session.scalar(select(User).where(User.email == admin_email))
+    if existing:
+        return BootstrapResponse(created=False, user=UserRead.model_validate(existing))
+
     user = User(
-        email=settings.admin_email.lower(),
+        email=admin_email,
         full_name="Rootellect Owner",
         role=UserRole.owner,
         password_hash=hash_password(settings.admin_password),

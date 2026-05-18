@@ -40,9 +40,11 @@ export default function LoginPage() {
                 router.push("/");
               } catch (err) {
                 const message = err instanceof Error ? err.message : "Unable to sign in.";
-                setError(
-                  `${message} Use the ADMIN_EMAIL and ADMIN_PASSWORD from your backend Vercel project (default: admin@rootellect.local / ChangeMe123!).`
-                );
+                const hint =
+                  message === "Invalid credentials"
+                    ? "The email or password does not match the admin user in the database. Use the exact ADMIN_EMAIL and ADMIN_PASSWORD from your backend Vercel project (default: admin@rootellect.local / ChangeMe123!). If you changed ADMIN_PASSWORD after the first deploy, reset it in the database or redeploy with a fresh DB."
+                    : `Use the ADMIN_EMAIL and ADMIN_PASSWORD from your backend Vercel project (default: admin@rootellect.local / ChangeMe123!).`;
+                setError(`${message}. ${hint}`);
               } finally {
                 setIsLoading(false);
               }

@@ -88,20 +88,23 @@ async function readApiError(response: Response): Promise<string> {
   }
 }
 
-async function authPost<T>(path: string, body?: unknown): Promise<T> {
+async function authPost<T>(path: string, body?: unknown, options?: { allowStatuses?: number[] }): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body)
   });
-  if (!response.ok) {
+  if (!response.ok && !options?.allowStatuses?.includes(response.status)) {
     throw new Error(await readApiError(response));
+  }
+  if (!response.ok) {
+    return {} as T;
   }
   return (await response.json()) as T;
 }
 
 export const api = {
-  bootstrap: () => authPost("/auth/bootstrap"),
+  bootstrap: () => authPost("/auth/bootstrap", undefined, { allowStatuses: [409] }),
   login: (email: string, password: string) => authPost<TokenResponse>("/auth/login", { email, password }),
   metrics: () => getJson<DashboardMetrics>("/dashboard/metrics", USE_MOCK_DATA ? metrics : emptyMetrics),
   comments: () => getJson<CommentItem[]>("/comments", USE_MOCK_DATA ? comments : []),
