@@ -12,7 +12,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
+from app.core.config import get_meta_oauth_scopes, get_settings
 from app.core.security import decrypt_secret, encrypt_secret
 from app.models.entities import InstagramAccount, ProviderCredential
 from app.models.enums import ProviderType
@@ -61,11 +61,12 @@ class MetaOAuthService:
         if not self.settings.meta_app_id or not self.settings.meta_oauth_redirect_uri:
             raise HTTPException(status_code=500, detail="Meta OAuth env vars are not configured")
 
+        scopes = get_meta_oauth_scopes(self.settings)
         params = {
             "client_id": self.settings.meta_app_id,
             "redirect_uri": self.settings.meta_oauth_redirect_uri,
             "state": self.build_state(),
-            "scope": ",".join(self.settings.meta_oauth_scopes),
+            "scope": ",".join(scopes),
             "response_type": "code",
         }
         return f"https://www.facebook.com/{self.settings.meta_graph_version}/dialog/oauth?{urlencode(params)}"
@@ -164,7 +165,7 @@ class MetaOAuthService:
 
         credential.account_name = page.get("name") or credential.account_name
         credential.encrypted_access_token = encrypt_secret(page_token)
-        credential.scopes = self.settings.meta_oauth_scopes
+        credential.scopes = get_meta_oauth_scopes(self.settings)
         credential.is_active = True
         credential.metadata_json = {
             "facebook_page": {"id": page.get("id"), "name": page.get("name")},
