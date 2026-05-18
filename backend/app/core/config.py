@@ -97,7 +97,7 @@ def get_cors_origins(settings: Settings | None = None) -> list[str]:
 def get_cors_origin_regex(settings: Settings | None = None) -> str | None:
     settings = settings or get_settings()
     if settings.environment == "production" or os.getenv("VERCEL"):
-        return r"https://[\w-]+\.vercel\.app$"
+        return r"https://.*\.vercel\.app$"
     return None
 
 

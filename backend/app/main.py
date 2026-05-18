@@ -8,6 +8,7 @@ from app.api.v1.router import api_router
 from app.core.config import get_cors_origin_regex, get_cors_origins, get_settings
 from app.core.logging import configure_logging
 from app.database.session import dispose_engine, get_engine
+from app.middleware.cors import VercelCorsMiddleware
 from app.middleware.security import RateLimitMiddleware, SecurityHeadersMiddleware
 from app.realtime import manager
 from app.webhooks.routes import router as webhook_router
@@ -30,6 +31,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(RateLimitMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_cors_origins(settings),
@@ -38,8 +41,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RateLimitMiddleware)
+app.add_middleware(VercelCorsMiddleware)
 
 app.include_router(api_router, prefix=settings.api_v1_prefix)
 app.include_router(webhook_router)

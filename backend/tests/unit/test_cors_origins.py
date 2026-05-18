@@ -13,4 +13,4 @@ def test_cors_origins_include_connect_success_url():
 
 def test_cors_regex_in_production():
     settings = Settings(environment="production")
-    assert get_cors_origin_regex(settings) == r"https://[\w-]+\.vercel\.app$"
+    assert get_cors_origin_regex(settings) == r"https://.*\.vercel\.app$"
