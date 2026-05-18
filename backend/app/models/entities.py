@@ -269,7 +269,7 @@ class ActionAttempt(Base, IdMixin, TimestampMixin):
 class AuditLog(Base, IdMixin, TimestampMixin):
     __tablename__ = "audit_logs"
 
-    actor_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    actor_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     action: Mapped[str] = mapped_column(String(128), index=True)
     entity_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     entity_id: Mapped[str | None] = mapped_column(String(64), nullable=True)

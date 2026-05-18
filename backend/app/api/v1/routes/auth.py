@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, status
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.security import create_access_token, hash_password, verify_password
 from app.database.init_db import ensure_schema
 from app.database.session import get_session
-from app.models.entities import User
+from app.models.entities import AuditLog, User
 from app.models.enums import UserRole
 from app.schemas.auth import BootstrapResponse, LoginRequest, ResetAdminResponse, TokenResponse, UserRead
 
@@ -62,18 +62,24 @@ async def reset_admin(
             detail=f"Database setup failed. Check DATABASE_URL on Vercel: {exc}",
         ) from exc
 
-    await session.execute(delete(User))
-    await session.commit()
-
     admin_email = settings.admin_email.lower()
-    user = User(
-        email=admin_email,
-        full_name="Rootellect Owner",
-        role=UserRole.owner,
-        password_hash=hash_password(settings.admin_password),
-    )
-    session.add(user)
-    await session.commit()
+    try:
+        await session.execute(update(AuditLog).values(actor_user_id=None))
+        await session.execute(delete(User))
+        user = User(
+            email=admin_email,
+            full_name="Rootellect Owner",
+            role=UserRole.owner,
+            password_hash=hash_password(settings.admin_password),
+        )
+        session.add(user)
+        await session.commit()
+    except Exception as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Admin reset failed: {exc}",
+        ) from exc
 
     return ResetAdminResponse(
         email=admin_email,

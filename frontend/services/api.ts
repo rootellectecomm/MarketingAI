@@ -72,12 +72,22 @@ async function postJson<T>(path: string, body?: unknown): Promise<T> {
 async function readApiError(response: Response): Promise<string> {
   const raw = await response.text();
   if (!raw) {
-    return `Request failed with ${response.status}`;
+    return response.status === 500
+      ? "Internal Server Error — redeploy the backend and check DATABASE_URL on Vercel."
+      : `Request failed with ${response.status}`;
+  }
+  if (raw.startsWith("<")) {
+    return response.status === 500
+      ? "Internal Server Error — backend crashed. Check Vercel backend logs and DATABASE_URL."
+      : `Request failed with ${response.status}`;
   }
   try {
-    const data = JSON.parse(raw) as { detail?: string | Array<{ msg?: string }> };
+    const data = JSON.parse(raw) as { detail?: string | Array<{ msg?: string }>; error?: string };
     if (typeof data.detail === "string") {
       return data.detail;
+    }
+    if (typeof data.error === "string") {
+      return data.error;
     }
     if (Array.isArray(data.detail)) {
       return data.detail.map((item) => item.msg ?? JSON.stringify(item)).join("; ");
