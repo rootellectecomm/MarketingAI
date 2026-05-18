@@ -28,8 +28,8 @@ from app.schemas.ai import AIRequestContext
 from app.schemas.social import NormalizedEvent
 from app.services.action_engine import ActionEngine
 from app.services.lead_scoring import LeadScoringService
-from app.services.normalization import detect_language, normalize_comment_text
 from app.services.meta_oauth import get_active_page_access_token
+from app.services.normalization import detect_language, normalize_comment_text
 from app.services.provider_factory import get_instagram_provider, get_whatsapp_provider
 
 

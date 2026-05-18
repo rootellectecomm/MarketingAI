@@ -44,6 +44,16 @@ app.include_router(api_router, prefix=settings.api_v1_prefix)
 app.include_router(webhook_router)
 
 
+@app.get("/")
+async def root() -> dict:
+    return {
+        "status": "ok",
+        "service": settings.app_name,
+        "docs": f"{settings.api_v1_prefix}/docs",
+        "health": "/health",
+    }
+
+
 @app.get("/health")
 async def health() -> dict:
     return {"status": "ok", "service": settings.app_name}
@@ -64,4 +74,3 @@ async def websocket_events(websocket: WebSocket) -> None:
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-

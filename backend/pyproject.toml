@@ -33,6 +33,10 @@ dev = [
   "mypy>=1.14.0"
 ]
 
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["alembic*", "tests*"]
+
 [tool.ruff]
 line-length = 130
 target-version = "py312"
