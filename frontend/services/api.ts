@@ -1,8 +1,38 @@
 import { campaigns, comments, leads, metrics } from "@/lib/mock-data";
-import type { Campaign, CommentItem, DashboardMetrics, Lead } from "@/types/api";
+import type { Campaign, CommentItem, DashboardMetrics, Lead, MetaSyncResult, ProviderStatus, TokenResponse } from "@/types/api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
 const PROVIDER_MODE = process.env.NEXT_PUBLIC_PROVIDER_MODE ?? "facebook_page_backed";
+const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true";
+
+const emptyMetrics: DashboardMetrics = {
+  comments: 0,
+  leads: 0,
+  automated_actions: 0,
+  escalations: 0,
+  avg_ai_confidence: 0,
+  sentiment: {},
+  latest_activity: []
+};
+
+const liveProviderFallback: ProviderStatus = {
+  provider_mode: PROVIDER_MODE,
+  facebook_ready: false,
+  instagram_ready: false,
+  whatsapp_ready: false,
+  openai_ready: false,
+  chroma_collection: "rootellect_knowledge"
+};
+
+function handleUnauthorized(response: Response) {
+  if (response.status !== 401 || typeof window === "undefined") {
+    return;
+  }
+  localStorage.removeItem("rootellect_token");
+  if (window.location.pathname !== "/login") {
+    window.location.href = "/login";
+  }
+}
 
 async function getJson<T>(path: string, fallback: T): Promise<T> {
   try {
@@ -12,6 +42,7 @@ async function getJson<T>(path: string, fallback: T): Promise<T> {
       next: { revalidate: 15 }
     });
     if (!response.ok) {
+      handleUnauthorized(response);
       return fallback;
     }
     return (await response.json()) as T;
@@ -20,21 +51,63 @@ async function getJson<T>(path: string, fallback: T): Promise<T> {
   }
 }
 
+async function postJson<T>(path: string, body?: unknown): Promise<T> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("rootellect_token") : null;
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  if (!response.ok) {
+    handleUnauthorized(response);
+    const detail = await response.text();
+    throw new Error(detail || `Request failed with ${response.status}`);
+  }
+  return (await response.json()) as T;
+}
+
+async function authPost<T>(path: string, body?: unknown): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || `Request failed with ${response.status}`);
+  }
+  return (await response.json()) as T;
+}
+
 export const api = {
-  metrics: () => getJson<DashboardMetrics>("/dashboard/metrics", metrics),
-  comments: () => getJson<CommentItem[]>("/comments", comments),
-  leads: () => getJson<Lead[]>("/leads", leads),
-  campaigns: () => getJson<Campaign[]>("/campaigns", campaigns),
+  bootstrap: () => authPost("/auth/bootstrap"),
+  login: (email: string, password: string) => authPost<TokenResponse>("/auth/login", { email, password }),
+  metrics: () => getJson<DashboardMetrics>("/dashboard/metrics", USE_MOCK_DATA ? metrics : emptyMetrics),
+  comments: () => getJson<CommentItem[]>("/comments", USE_MOCK_DATA ? comments : []),
+  leads: () => getJson<Lead[]>("/leads", USE_MOCK_DATA ? leads : []),
+  campaigns: () => getJson<Campaign[]>("/campaigns", USE_MOCK_DATA ? campaigns : []),
   aiLogs: () => getJson<Array<Record<string, unknown>>>("/ai-logs", []),
   moderation: () => getJson<Array<Record<string, unknown>>>("/moderation", []),
   webhooks: () => getJson<Array<Record<string, unknown>>>("/webhooks/logs", []),
+  syncMetaComments: (params = { media_limit: 8, comments_per_media: 25 }) =>
+    postJson<MetaSyncResult>(
+      `/meta/sync/comments?media_limit=${params.media_limit}&comments_per_media=${params.comments_per_media}`
+    ),
   providerStatus: () =>
-    getJson("/settings/providers", {
-      provider_mode: PROVIDER_MODE,
-      facebook_ready: PROVIDER_MODE !== "mock",
-      instagram_ready: PROVIDER_MODE !== "mock",
-      whatsapp_ready: process.env.NEXT_PUBLIC_WHATSAPP_READY === "true",
-      openai_ready: process.env.NEXT_PUBLIC_OPENAI_READY !== "false",
-      chroma_collection: "rootellect_knowledge"
-    })
+    getJson<ProviderStatus>(
+      "/settings/providers",
+      USE_MOCK_DATA
+        ? {
+            provider_mode: PROVIDER_MODE,
+            facebook_ready: PROVIDER_MODE !== "mock",
+            instagram_ready: PROVIDER_MODE !== "mock",
+            whatsapp_ready: process.env.NEXT_PUBLIC_WHATSAPP_READY === "true",
+            openai_ready: process.env.NEXT_PUBLIC_OPENAI_READY !== "false",
+            chroma_collection: "rootellect_knowledge"
+          }
+        : liveProviderFallback
+    )
 };

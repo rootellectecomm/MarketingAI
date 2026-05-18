@@ -46,3 +46,34 @@ export type Campaign = {
   created_at: string;
 };
 
+export type User = {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+};
+
+export type TokenResponse = {
+  access_token: string;
+  token_type: string;
+  user: User;
+};
+
+export type ProviderStatus = {
+  provider_mode: string;
+  facebook_ready: boolean;
+  instagram_ready: boolean;
+  whatsapp_ready: boolean;
+  openai_ready: boolean;
+  chroma_collection: string;
+};
+
+export type MetaSyncResult = {
+  instagram_account: {
+    id: string;
+    username: string;
+  };
+  media_seen: number;
+  comments_created: number;
+  comments_updated: number;
+};

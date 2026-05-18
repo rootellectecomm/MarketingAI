@@ -2,9 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies import get_current_user
 from app.core.config import get_settings
 from app.database.session import get_session
 from app.services.meta_oauth import MetaOAuthService
+from app.services.meta_sync import MetaSyncService
 
 router = APIRouter(prefix="/meta", tags=["meta"])
 
@@ -75,3 +77,16 @@ async def meta_callback(
             status_code=302,
         )
     return JSONResponse(result)
+
+
+@router.post("/sync/comments", dependencies=[Depends(get_current_user)])
+async def sync_meta_comments(
+    media_limit: int = Query(default=8, ge=1, le=25),
+    comments_per_media: int = Query(default=25, ge=1, le=50),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    return await MetaSyncService().sync_recent_comments(
+        session,
+        media_limit=media_limit,
+        comments_per_media=comments_per_media,
+    )
