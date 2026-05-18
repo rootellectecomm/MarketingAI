@@ -27,3 +27,9 @@ class BootstrapResponse(BaseModel):
     created: bool
     user: UserRead
 
+
+class ResetAdminResponse(BaseModel):
+    email: EmailStr
+    reset: bool
+    message: str
+

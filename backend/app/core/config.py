@@ -31,6 +31,7 @@ class Settings(BaseSettings):
 
     admin_email: str = "admin@rootellect.local"
     admin_password: str = "ChangeMe123!"
+    reset_admin_secret: str = "rootellect-reset-secret"
 
     meta_verify_token: str = "rootellect-webhook-token"
     meta_app_id: str | None = None

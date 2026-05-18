@@ -89,11 +89,18 @@ async function readApiError(response: Response): Promise<string> {
 }
 
 async function authPost<T>(path: string, body?: unknown, options?: { allowStatuses?: number[] }): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body)
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body)
+    });
+  } catch {
+    throw new Error(
+      `Cannot reach backend at ${API_BASE_URL}. Set NEXT_PUBLIC_API_BASE_URL on the frontend Vercel project to https://marketing-ai-gymu.vercel.app/api/v1 and redeploy the backend.`
+    );
+  }
   if (!response.ok && !options?.allowStatuses?.includes(response.status)) {
     throw new Error(await readApiError(response));
   }
@@ -103,7 +110,21 @@ async function authPost<T>(path: string, body?: unknown, options?: { allowStatus
   return (await response.json()) as T;
 }
 
+async function resetAdmin(): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch("/api/auth/reset-admin", { method: "POST", cache: "no-store" });
+  } catch {
+    throw new Error("Cannot reach the reset-admin proxy on this frontend deployment.");
+  }
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(payload?.error ?? `Admin reset failed with status ${response.status}`);
+  }
+}
+
 export const api = {
+  resetAdmin,
   bootstrap: () => authPost("/auth/bootstrap", undefined, { allowStatuses: [409] }),
   login: (email: string, password: string) => authPost<TokenResponse>("/auth/login", { email, password }),
   metrics: () => getJson<DashboardMetrics>("/dashboard/metrics", USE_MOCK_DATA ? metrics : emptyMetrics),

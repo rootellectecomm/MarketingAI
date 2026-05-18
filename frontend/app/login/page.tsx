@@ -34,6 +34,7 @@ export default function LoginPage() {
               setError(null);
               setIsLoading(true);
               try {
+                await api.resetAdmin();
                 await api.bootstrap();
                 const response = await api.login(email, password);
                 setToken(response.access_token);

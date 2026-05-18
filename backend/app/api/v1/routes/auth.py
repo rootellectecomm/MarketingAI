@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, Header, HTTPException, status
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -8,7 +8,7 @@ from app.database.init_db import ensure_schema
 from app.database.session import get_session
 from app.models.entities import User
 from app.models.enums import UserRole
-from app.schemas.auth import BootstrapResponse, LoginRequest, TokenResponse, UserRead
+from app.schemas.auth import BootstrapResponse, LoginRequest, ResetAdminResponse, TokenResponse, UserRead
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -27,6 +27,10 @@ async def bootstrap_admin(session: AsyncSession = Depends(get_session)) -> Boots
     admin_email = settings.admin_email.lower()
     existing = await session.scalar(select(User).where(User.email == admin_email))
     if existing:
+        existing.password_hash = hash_password(settings.admin_password)
+        existing.is_active = True
+        await session.commit()
+        await session.refresh(existing)
         return BootstrapResponse(created=False, user=UserRead.model_validate(existing))
 
     user = User(
@@ -39,6 +43,43 @@ async def bootstrap_admin(session: AsyncSession = Depends(get_session)) -> Boots
     await session.commit()
     await session.refresh(user)
     return BootstrapResponse(created=True, user=UserRead.model_validate(user))
+
+
+@router.post("/reset-admin", response_model=ResetAdminResponse)
+async def reset_admin(
+    session: AsyncSession = Depends(get_session),
+    x_reset_admin_secret: str | None = Header(default=None, alias="X-Reset-Admin-Secret"),
+) -> ResetAdminResponse:
+    settings = get_settings()
+    if not x_reset_admin_secret or x_reset_admin_secret != settings.reset_admin_secret:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid reset secret")
+
+    try:
+        await ensure_schema()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Database setup failed. Check DATABASE_URL on Vercel: {exc}",
+        ) from exc
+
+    await session.execute(delete(User))
+    await session.commit()
+
+    admin_email = settings.admin_email.lower()
+    user = User(
+        email=admin_email,
+        full_name="Rootellect Owner",
+        role=UserRole.owner,
+        password_hash=hash_password(settings.admin_password),
+    )
+    session.add(user)
+    await session.commit()
+
+    return ResetAdminResponse(
+        email=admin_email,
+        reset=True,
+        message="Admin user reset from ADMIN_EMAIL and ADMIN_PASSWORD env vars.",
+    )
 
 
 @router.post("/login", response_model=TokenResponse)
