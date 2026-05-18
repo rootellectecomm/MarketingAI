@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60
     encryption_secret: str = "change-me-32-byte-secret"
 
-    admin_email: str = "admin@rootellect.local"
+    admin_email: str = "admin@rootellect.com"
     admin_password: str = "ChangeMe123!"
     reset_admin_secret: str = "rootellect-reset-secret"
 

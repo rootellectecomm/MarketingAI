@@ -1,10 +1,10 @@
 from sqlalchemy import text
 
+from app import models  # noqa: F401
 from app.database.base import Base
 from app.database.session import get_engine
 
 # Import models so metadata is populated.
-from app import models  # noqa: F401
 
 _schema_ready = False
 

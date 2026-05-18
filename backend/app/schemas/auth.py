@@ -1,10 +1,10 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 
 from app.models.enums import UserRole
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
 
 
@@ -16,7 +16,7 @@ class TokenResponse(BaseModel):
 
 class UserRead(BaseModel):
     id: str
-    email: EmailStr
+    email: str
     full_name: str
     role: UserRole
 
@@ -29,7 +29,6 @@ class BootstrapResponse(BaseModel):
 
 
 class ResetAdminResponse(BaseModel):
-    email: EmailStr
+    email: str
     reset: bool
     message: str
-

@@ -12,7 +12,7 @@ import { useAuthStore } from "@/store/auth";
 export default function LoginPage() {
   const router = useRouter();
   const setToken = useAuthStore((state) => state.setToken);
-  const [email, setEmail] = useState("admin@rootellect.local");
+  const [email, setEmail] = useState("admin@rootellect.com");
   const [password, setPassword] = useState("ChangeMe123!");
   const [error, setError] = useState<string | null>(null);
   const [backendAdminEmail, setBackendAdminEmail] = useState<string | null>(null);
