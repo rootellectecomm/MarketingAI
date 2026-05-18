@@ -18,7 +18,7 @@ def normalize_async_database_url(database_url: str) -> tuple[URL, dict[str, Any]
         url = url.set(drivername="postgresql+asyncpg")
 
     if url.drivername == "postgresql+asyncpg":
-        query = dict(url.query)
+        query = dict(url.query or ())
         ssl_value = query.pop("ssl", None) or query.pop("sslmode", None)
         if str(ssl_value).lower() in {"1", "true", "require", "verify-ca", "verify-full"}:
             connect_args["ssl"] = True

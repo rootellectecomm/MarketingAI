@@ -118,7 +118,10 @@ class MetaOAuthService:
             redirect_uri=self.settings.meta_oauth_redirect_uri,
             code=code,
         )
-        return payload["access_token"]
+        token = payload.get("access_token") if isinstance(payload, dict) else None
+        if not token:
+            raise HTTPException(status_code=400, detail={"meta_error": payload})
+        return token
 
     async def _exchange_long_lived_token(self, client: httpx.AsyncClient, token: str) -> str:
         payload = await self._get_json(

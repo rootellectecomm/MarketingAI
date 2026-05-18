@@ -68,9 +68,13 @@ def get_settings() -> Settings:
 
 def get_cors_origins(settings: Settings | None = None) -> list[str]:
     value = (settings or get_settings()).backend_cors_origins
-    return [origin.strip() for origin in value.split(",") if origin.strip()]
+    if not value:
+        return ["http://localhost:3000"]
+    return [origin.strip() for origin in str(value).split(",") if origin.strip()]
 
 
 def get_meta_oauth_scopes(settings: Settings | None = None) -> list[str]:
     value = (settings or get_settings()).meta_oauth_scopes
-    return [scope.strip() for scope in value.split(",") if scope.strip()]
+    if not value:
+        return []
+    return [scope.strip() for scope in str(value).split(",") if scope.strip()]

@@ -69,6 +69,25 @@ async function postJson<T>(path: string, body?: unknown): Promise<T> {
   return (await response.json()) as T;
 }
 
+async function readApiError(response: Response): Promise<string> {
+  const raw = await response.text();
+  if (!raw) {
+    return `Request failed with ${response.status}`;
+  }
+  try {
+    const data = JSON.parse(raw) as { detail?: string | Array<{ msg?: string }> };
+    if (typeof data.detail === "string") {
+      return data.detail;
+    }
+    if (Array.isArray(data.detail)) {
+      return data.detail.map((item) => item.msg ?? JSON.stringify(item)).join("; ");
+    }
+    return raw;
+  } catch {
+    return raw;
+  }
+}
+
 async function authPost<T>(path: string, body?: unknown): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
@@ -76,8 +95,7 @@ async function authPost<T>(path: string, body?: unknown): Promise<T> {
     body: body === undefined ? undefined : JSON.stringify(body)
   });
   if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `Request failed with ${response.status}`);
+    throw new Error(await readApiError(response));
   }
   return (await response.json()) as T;
 }

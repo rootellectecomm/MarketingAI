@@ -34,12 +34,15 @@ export default function LoginPage() {
               setError(null);
               setIsLoading(true);
               try {
-                await api.bootstrap().catch(() => null);
+                await api.bootstrap();
                 const response = await api.login(email, password);
                 setToken(response.access_token);
                 router.push("/");
-              } catch {
-                setError("Unable to sign in. Check the admin email and password configured in Vercel.");
+              } catch (err) {
+                const message = err instanceof Error ? err.message : "Unable to sign in.";
+                setError(
+                  `${message} Use the ADMIN_EMAIL and ADMIN_PASSWORD from your backend Vercel project (default: admin@rootellect.local / ChangeMe123!).`
+                );
               } finally {
                 setIsLoading(false);
               }
