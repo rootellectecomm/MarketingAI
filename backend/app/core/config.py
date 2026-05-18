@@ -1,5 +1,7 @@
+import os
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import urlparse
 
 from pydantic import AnyHttpUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -66,11 +68,37 @@ def get_settings() -> Settings:
     return Settings()
 
 
+def _origin_from_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    parsed = urlparse(url)
+    if parsed.scheme and parsed.netloc:
+        return f"{parsed.scheme}://{parsed.netloc}"
+    return None
+
+
 def get_cors_origins(settings: Settings | None = None) -> list[str]:
-    value = (settings or get_settings()).backend_cors_origins
-    if not value:
-        return ["http://localhost:3000"]
-    return [origin.strip() for origin in str(value).split(",") if origin.strip()]
+    settings = settings or get_settings()
+    origins: list[str] = []
+
+    value = settings.backend_cors_origins
+    if value:
+        origins.extend(origin.strip() for origin in str(value).split(",") if origin.strip())
+    else:
+        origins.append("http://localhost:3000")
+
+    for candidate in (_origin_from_url(settings.meta_connect_success_url), _origin_from_url(settings.public_base_url)):
+        if candidate and candidate not in origins:
+            origins.append(candidate)
+
+    return origins
+
+
+def get_cors_origin_regex(settings: Settings | None = None) -> str | None:
+    settings = settings or get_settings()
+    if settings.environment == "production" or os.getenv("VERCEL"):
+        return r"https://[\w-]+\.vercel\.app$"
+    return None
 
 
 def get_meta_oauth_scopes(settings: Settings | None = None) -> list[str]:

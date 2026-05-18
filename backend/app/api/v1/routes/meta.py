@@ -34,6 +34,7 @@ async def connect_meta() -> Response:
                     "META_APP_SECRET": "from Meta App Dashboard",
                     "META_OAUTH_REDIRECT_URI": "https://marketing-ai-gymu.vercel.app/api/v1/meta/callback",
                     "META_CONNECT_SUCCESS_URL": "https://marketing-ai-gamma-virid.vercel.app/settings",
+                    "BACKEND_CORS_ORIGINS": "https://marketing-ai-gamma-virid.vercel.app",
                     "PROVIDER_MODE": "facebook_page_backed",
                 },
             },
