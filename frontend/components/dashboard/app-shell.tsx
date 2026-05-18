@@ -83,7 +83,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Button>
             <div>
               <div className="text-sm font-semibold">Live Operations</div>
-              <div className="text-xs text-[var(--muted-foreground)]">Mock adapters active until Meta credentials are enabled</div>
+              <div className="text-xs text-[var(--muted-foreground)]">Meta webhook forwarding and AI automation controls</div>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -108,4 +108,3 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
-

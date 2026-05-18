@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 export default function SettingsPage() {
+  const providerMode = process.env.NEXT_PUBLIC_PROVIDER_MODE ?? "instagram_professional";
+
   return (
     <div className="space-y-6">
       <div>
@@ -18,7 +20,7 @@ export default function SettingsPage() {
         <CardContent>
           <div className="grid gap-3 md:grid-cols-3">
             <Input defaultValue="0.78" aria-label="Autosend confidence" />
-            <Input defaultValue="mock" aria-label="Provider mode" />
+            <Input defaultValue={providerMode} aria-label="Provider mode" />
             <Button type="button">Update settings</Button>
           </div>
         </CardContent>
@@ -26,4 +28,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-

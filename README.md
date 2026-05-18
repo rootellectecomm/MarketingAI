@@ -43,6 +43,15 @@ npm run dev
 
 Dashboard: `http://localhost:3000`
 
+For Vercel webhook forwarding, set this server-side env in the frontend project:
+
+```env
+BACKEND_WEBHOOK_URL=https://your-backend-domain.com/webhooks/meta/instagram
+NEXT_PUBLIC_PROVIDER_MODE=instagram_professional
+NEXT_PUBLIC_OPENAI_READY=true
+NEXT_PUBLIC_WHATSAPP_READY=false
+```
+
 ## Docker
 
 ```powershell
