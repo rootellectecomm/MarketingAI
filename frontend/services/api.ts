@@ -25,12 +25,19 @@ const emptyMetrics: DashboardMetrics = {
 };
 
 const liveProviderFallback: ProviderStatus = {
+  backend_reachable: false,
   provider_mode: PROVIDER_MODE,
   facebook_ready: false,
   instagram_ready: false,
   whatsapp_ready: false,
   openai_ready: false,
-  chroma_collection: "rootellect_knowledge"
+  chroma_collection: "rootellect_knowledge",
+  meta_env_ready: false,
+  setup_warnings: [
+    "Cannot read backend provider status. Check NEXT_PUBLIC_API_BASE_URL on the frontend Vercel project and redeploy."
+  ],
+  facebook_pages: [],
+  instagram_accounts: []
 };
 
 function handleUnauthorized(response: Response) {
@@ -161,12 +168,17 @@ export const api = {
       "/settings/providers",
       USE_MOCK_DATA
         ? {
+            backend_reachable: true,
             provider_mode: PROVIDER_MODE,
             facebook_ready: PROVIDER_MODE !== "mock",
             instagram_ready: PROVIDER_MODE !== "mock",
             whatsapp_ready: process.env.NEXT_PUBLIC_WHATSAPP_READY === "true",
             openai_ready: process.env.NEXT_PUBLIC_OPENAI_READY !== "false",
-            chroma_collection: "rootellect_knowledge"
+            chroma_collection: "rootellect_knowledge",
+            meta_env_ready: PROVIDER_MODE !== "mock",
+            setup_warnings: [],
+            facebook_pages: [],
+            instagram_accounts: []
           }
         : liveProviderFallback
     )

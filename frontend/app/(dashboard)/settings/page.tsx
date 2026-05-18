@@ -26,6 +26,10 @@ export default function SettingsPage() {
       ]);
     }
   });
+  const syncErrorMessage =
+    syncMutation.error instanceof Error
+      ? syncMutation.error.message
+      : "Sync failed. Check Meta permissions, connected Instagram account, and backend logs.";
 
   useEffect(() => {
     if (autoSyncStarted.current || typeof window === "undefined") {
@@ -77,8 +81,8 @@ export default function SettingsPage() {
                 </div>
               ) : null}
               {syncMutation.error ? (
-                <div className="mt-2 text-sm text-[var(--danger)]">
-                  Sync failed. Check Meta permissions, connected Instagram account, and backend logs.
+                <div className="mt-2 max-w-3xl break-words text-sm text-[var(--danger)]">
+                  {syncErrorMessage}
                 </div>
               ) : null}
             </div>

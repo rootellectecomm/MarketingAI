@@ -65,12 +65,27 @@ export type BootstrapResponse = {
 };
 
 export type ProviderStatus = {
+  backend_reachable?: boolean;
   provider_mode: string;
   facebook_ready: boolean;
   instagram_ready: boolean;
   whatsapp_ready: boolean;
   openai_ready: boolean;
   chroma_collection: string;
+  meta_env_ready?: boolean;
+  missing_meta_env?: string[];
+  setup_warnings?: string[];
+  facebook_pages?: Array<{
+    id: string | null;
+    name: string;
+    updated_at: string | null;
+  }>;
+  instagram_accounts?: Array<{
+    id: string;
+    username: string;
+    auth_path: string;
+    updated_at: string | null;
+  }>;
 };
 
 export type MetaSyncResult = {

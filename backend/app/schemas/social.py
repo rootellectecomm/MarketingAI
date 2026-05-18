@@ -47,10 +47,29 @@ class WebhookLogRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class FacebookPageStatus(BaseModel):
+    id: str | None
+    name: str
+    updated_at: datetime | None
+
+
+class InstagramAccountStatus(BaseModel):
+    id: str
+    username: str
+    auth_path: str
+    updated_at: datetime | None
+
+
 class ProviderStatus(BaseModel):
+    backend_reachable: bool = True
     provider_mode: str
     facebook_ready: bool
     instagram_ready: bool
     whatsapp_ready: bool
     openai_ready: bool
     chroma_collection: str
+    meta_env_ready: bool
+    missing_meta_env: list[str] = Field(default_factory=list)
+    setup_warnings: list[str] = Field(default_factory=list)
+    facebook_pages: list[FacebookPageStatus] = Field(default_factory=list)
+    instagram_accounts: list[InstagramAccountStatus] = Field(default_factory=list)
