@@ -2,7 +2,7 @@ import { campaigns, comments, leads, metrics } from "@/lib/mock-data";
 import type { Campaign, CommentItem, DashboardMetrics, Lead } from "@/types/api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
-const PROVIDER_MODE = process.env.NEXT_PUBLIC_PROVIDER_MODE ?? "instagram_professional";
+const PROVIDER_MODE = process.env.NEXT_PUBLIC_PROVIDER_MODE ?? "facebook_page_backed";
 
 async function getJson<T>(path: string, fallback: T): Promise<T> {
   try {
@@ -31,6 +31,7 @@ export const api = {
   providerStatus: () =>
     getJson("/settings/providers", {
       provider_mode: PROVIDER_MODE,
+      facebook_ready: PROVIDER_MODE !== "mock",
       instagram_ready: PROVIDER_MODE !== "mock",
       whatsapp_ready: process.env.NEXT_PUBLIC_WHATSAPP_READY === "true",
       openai_ready: process.env.NEXT_PUBLIC_OPENAI_READY !== "false",

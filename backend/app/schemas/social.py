@@ -49,6 +49,7 @@ class WebhookLogRead(BaseModel):
 
 class ProviderStatus(BaseModel):
     provider_mode: str
+    facebook_ready: bool
     instagram_ready: bool
     whatsapp_ready: bool
     openai_ready: bool

@@ -31,8 +31,22 @@ class Settings(BaseSettings):
     admin_password: str = "ChangeMe123!"
 
     meta_verify_token: str = "rootellect-webhook-token"
+    meta_app_id: str | None = None
     meta_app_secret: str = "replace-meta-app-secret"
     meta_graph_version: str = "v25.0"
+    meta_oauth_redirect_uri: str | None = None
+    meta_connect_success_url: str | None = None
+    meta_oauth_scopes: list[str] = Field(
+        default_factory=lambda: [
+            "pages_show_list",
+            "pages_read_engagement",
+            "pages_manage_metadata",
+            "pages_manage_engagement",
+            "instagram_basic",
+            "instagram_manage_comments",
+            "instagram_manage_messages",
+        ]
+    )
     provider_mode: Literal["mock", "instagram_professional", "facebook_page_backed"] = "mock"
 
     openai_api_key: str | None = None
@@ -53,6 +67,13 @@ class Settings(BaseSettings):
     def split_cors_origins(cls, value: str | list[str]) -> list[str]:
         if isinstance(value, str):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
+        return value
+
+    @field_validator("meta_oauth_scopes", mode="before")
+    @classmethod
+    def split_meta_scopes(cls, value: str | list[str]) -> list[str]:
+        if isinstance(value, str):
+            return [scope.strip() for scope in value.split(",") if scope.strip()]
         return value
 
 

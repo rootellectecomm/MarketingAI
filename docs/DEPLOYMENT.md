@@ -27,7 +27,11 @@ Set OpenAI defaults:
 
 Set Meta credentials after app review:
 
-- `PROVIDER_MODE=instagram_professional` or `PROVIDER_MODE=facebook_page_backed`
+- `META_APP_ID`
+- `META_APP_SECRET`
+- `META_OAUTH_REDIRECT_URI=https://api.example.com/api/v1/meta/callback`
+- `META_CONNECT_SUCCESS_URL=https://app.example.com/settings`
+- `PROVIDER_MODE=facebook_page_backed`
 - provider access tokens stored through encrypted credentials
 - `WHATSAPP_PHONE_NUMBER_ID`
 - `WHATSAPP_ACCESS_TOKEN`

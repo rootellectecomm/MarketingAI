@@ -29,6 +29,7 @@ from app.schemas.social import NormalizedEvent
 from app.services.action_engine import ActionEngine
 from app.services.lead_scoring import LeadScoringService
 from app.services.normalization import detect_language, normalize_comment_text
+from app.services.meta_oauth import get_active_page_access_token
 from app.services.provider_factory import get_instagram_provider, get_whatsapp_provider
 
 
@@ -155,7 +156,12 @@ class EventProcessor:
         lead.score = max(0, min(100, lead.score + score_delta))
         session.add(LeadScore(lead_id=lead.id, score_delta=score_delta, reason=decision.intent))
 
-        provider = get_whatsapp_provider() if normalized.event_type == EventType.whatsapp_message else get_instagram_provider()
+        page_access_token = await get_active_page_access_token(session)
+        provider = (
+            get_whatsapp_provider()
+            if normalized.event_type == EventType.whatsapp_message
+            else get_instagram_provider(access_token=page_access_token)
+        )
         await self.actions.execute(session, provider, event, comment, decision)
 
         session.add(

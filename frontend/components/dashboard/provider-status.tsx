@@ -14,6 +14,7 @@ const providerLabels: Record<string, string> = {
 export function ProviderStatusPanel() {
   const { data } = useQuery({ queryKey: ["providers"], queryFn: api.providerStatus });
   const rows = [
+    ["Facebook", data?.facebook_ready],
     ["Instagram", data?.instagram_ready],
     ["WhatsApp", data?.whatsapp_ready],
     ["OpenAI", data?.openai_ready],
