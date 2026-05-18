@@ -97,9 +97,23 @@ async function readApiError(response: Response): Promise<string> {
       : `Request failed with ${response.status}`;
   }
   try {
-    const data = JSON.parse(raw) as { detail?: string | Array<{ msg?: string }>; error?: string; fix?: string };
+    const data = JSON.parse(raw) as {
+      detail?: string | Array<{ msg?: string }> | { meta_error?: { error?: { message?: string; code?: number } }; fix?: string };
+      error?: string;
+      fix?: string;
+    };
     if (typeof data.detail === "string") {
       return data.detail;
+    }
+    if (data.detail && !Array.isArray(data.detail) && typeof data.detail === "object") {
+      const metaMessage = data.detail.meta_error?.error?.message;
+      const metaCode = data.detail.meta_error?.error?.code;
+      if (metaMessage) {
+        return metaCode ? `Meta API error ${metaCode}: ${metaMessage}` : `Meta API error: ${metaMessage}`;
+      }
+      if (typeof data.detail.fix === "string") {
+        return data.detail.fix;
+      }
     }
     if (typeof data.error === "string") {
       return data.fix ? `${data.error} ${data.fix}` : data.error;

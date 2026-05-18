@@ -29,7 +29,7 @@ export default function SettingsPage() {
   const syncErrorMessage =
     syncMutation.error instanceof Error
       ? syncMutation.error.message
-      : "Sync failed. Check Meta permissions, connected Instagram account, and backend logs.";
+      : "Sync failed before the backend returned a readable error. Redeploy the latest frontend and try again.";
 
   useEffect(() => {
     if (autoSyncStarted.current || typeof window === "undefined") {

@@ -36,13 +36,27 @@ class MetaSyncService:
             select(InstagramAccount).where(InstagramAccount.is_active.is_(True)).order_by(InstagramAccount.updated_at.desc())
         )
         if not account:
-            raise HTTPException(status_code=400, detail="No connected Instagram account found")
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "No connected Instagram account found. In Settings, click Connect Facebook & Instagram and authorize "
+                    "the Facebook Page that owns your Instagram professional account. If you already connected, check that "
+                    "the Meta callback returned to Settings with meta=connected and that PROVIDER_MODE=facebook_page_backed "
+                    "is set on the backend Vercel project."
+                ),
+            )
 
         credential = None
         if account.provider_credential_id:
             credential = await session.get(ProviderCredential, account.provider_credential_id)
         if not credential or not credential.encrypted_access_token:
-            raise HTTPException(status_code=400, detail="No active Facebook Page token found")
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "No active Facebook Page token found. Reconnect Facebook & Instagram and make sure you select the Page "
+                    "linked to the Instagram professional account during Meta authorization."
+                ),
+            )
 
         access_token = decrypt_secret(credential.encrypted_access_token)
         synced = 0
