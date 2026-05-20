@@ -8,6 +8,7 @@ import time
 from urllib.parse import urlencode
 
 import httpx
+import structlog
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,8 @@ from app.core.config import get_meta_oauth_scopes, get_settings
 from app.core.security import decrypt_secret, encrypt_secret
 from app.models.entities import InstagramAccount, ProviderCredential
 from app.models.enums import ProviderType
+
+logger = structlog.get_logger(__name__)
 
 
 def _base64url(data: bytes) -> str:
@@ -80,10 +83,13 @@ class MetaOAuthService:
         if not self.settings.meta_app_id or not self.settings.meta_oauth_redirect_uri:
             raise HTTPException(status_code=500, detail="Meta OAuth env vars are not configured")
 
+        diagnostics: dict = {}
         async with httpx.AsyncClient(timeout=30) as client:
             short_token = await self._exchange_code(client, code)
             long_token = await self._exchange_long_lived_token(client, short_token)
             user = await self._get_json(client, "me", long_token, fields="id,name,email")
+            diagnostics["user"] = {key: user.get(key) for key in ("id", "name", "email")}
+            diagnostics["debug_token"] = await self._debug_token(client, long_token)
             pages = await self._get_json(
                 client,
                 "me/accounts",
@@ -95,6 +101,21 @@ class MetaOAuthService:
                 ),
                 limit=100,
             )
+            if not pages.get("data"):
+                # Some Meta apps return an empty list when nested IG fields are unavailable.
+                pages = await self._get_json(client, "me/accounts", long_token, fields="id,name,access_token,tasks", limit=100)
+            diagnostics["pages_count"] = len(pages.get("data", []))
+            diagnostics["pages"] = [
+                {
+                    "id": page.get("id"),
+                    "name": page.get("name"),
+                    "has_access_token": bool(page.get("access_token")),
+                    "has_ig_business": bool(page.get("instagram_business_account")),
+                    "has_connected_ig": bool(page.get("connected_instagram_account")),
+                    "tasks": page.get("tasks"),
+                }
+                for page in pages.get("data", [])
+            ]
 
         connected_pages = []
         connected_instagram = []
@@ -111,9 +132,11 @@ class MetaOAuthService:
                 connected_instagram.append({"id": account.ig_user_id, "username": account.username})
 
         await session.commit()
+        logger.info("meta_oauth_connected", diagnostics=diagnostics)
         return {
             "facebook_pages": connected_pages,
             "instagram_accounts": connected_instagram,
+            "diagnostics": diagnostics,
             "message": "Facebook and Instagram connection saved.",
         }
 
@@ -147,6 +170,24 @@ class MetaOAuthService:
             fb_exchange_token=token,
         )
         return payload.get("access_token", token)
+
+    async def _debug_token(self, client: httpx.AsyncClient, token: str) -> dict:
+        if not self.settings.meta_app_id or not self.settings.meta_app_secret:
+            return {}
+        app_token = f"{self.settings.meta_app_id}|{self.settings.meta_app_secret}"
+        try:
+            payload = await self._get_json(client, "debug_token", None, input_token=token, access_token=app_token)
+        except HTTPException as exc:
+            logger.warning("meta_debug_token_failed", detail=exc.detail)
+            return {"error": exc.detail}
+        data = payload.get("data", {})
+        return {
+            "app_id": data.get("app_id"),
+            "type": data.get("type"),
+            "is_valid": data.get("is_valid"),
+            "scopes": data.get("scopes", []),
+            "granular_scopes": data.get("granular_scopes", []),
+        }
 
     async def _get_json(self, client: httpx.AsyncClient, path: str, token: str | None, **params) -> dict:
         if token:

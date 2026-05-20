@@ -45,9 +45,11 @@ export default function SettingsPage() {
       const warning = searchParams.get("warning");
       const message = searchParams.get("message");
       if (warning) {
+        const scopes = searchParams.get("scopes");
         setMetaCallbackMessage(
-          message ||
-            "Meta returned from authorization, but did not provide the required Facebook Page and Instagram account."
+          `${message || "Meta returned from authorization, but did not provide the required Facebook Page and Instagram account."}${
+            scopes ? ` Granted scopes: ${scopes}` : ""
+          }`
         );
         return;
       }

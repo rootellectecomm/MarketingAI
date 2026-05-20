@@ -94,10 +94,13 @@ async def meta_callback(
         instagram_accounts = len(result["instagram_accounts"])
         warning = ""
         if facebook_pages == 0:
+            scopes = ",".join((result.get("diagnostics") or {}).get("debug_token", {}).get("scopes", []))
             warning = (
                 "&warning=no_facebook_pages"
                 "&message=Meta%20did%20not%20return%20any%20Facebook%20Pages.%20"
-                "During%20authorization%2C%20select%20the%20Page%20linked%20to%20Instagram%20and%20allow%20Page%20permissions."
+                "This%20usually%20means%20the%20token%20is%20missing%20pages_show_list%20or%20business_management%2C%20"
+                "or%20the%20selected%20Facebook%20user%20does%20not%20have%20full%20control%20of%20the%20Page."
+                f"&scopes={scopes}"
             )
         elif instagram_accounts == 0:
             warning = (

@@ -45,6 +45,7 @@ class Settings(BaseSettings):
         "pages_read_engagement,"
         "pages_manage_metadata,"
         "pages_manage_engagement,"
+        "business_management,"
         "instagram_basic,"
         "instagram_manage_comments,"
         "instagram_manage_messages"
