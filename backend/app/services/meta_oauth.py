@@ -61,14 +61,17 @@ class MetaOAuthService:
         if not self.settings.meta_app_id or not self.settings.meta_oauth_redirect_uri:
             raise HTTPException(status_code=500, detail="Meta OAuth env vars are not configured")
 
-        scopes = get_meta_oauth_scopes(self.settings)
         params = {
             "client_id": self.settings.meta_app_id,
             "redirect_uri": self.settings.meta_oauth_redirect_uri,
             "state": self.build_state(),
-            "scope": ",".join(scopes),
             "response_type": "code",
         }
+        if self.settings.meta_login_config_id:
+            params["config_id"] = self.settings.meta_login_config_id
+        else:
+            scopes = get_meta_oauth_scopes(self.settings)
+            params["scope"] = ",".join(scopes)
         return f"https://www.facebook.com/{self.settings.meta_graph_version}/dialog/oauth?{urlencode(params)}"
 
     async def connect_from_code(self, session: AsyncSession, code: str) -> dict:

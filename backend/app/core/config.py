@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     meta_graph_version: str = "v25.0"
     meta_oauth_redirect_uri: str | None = None
     meta_connect_success_url: str | None = None
+    meta_login_config_id: str | None = None
     meta_oauth_scopes: str = (
         "pages_show_list,"
         "pages_read_engagement,"
