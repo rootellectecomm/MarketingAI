@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { ProviderStatusPanel } from "@/components/dashboard/provider-status";
@@ -13,6 +13,9 @@ export default function SettingsPage() {
   const providerMode = process.env.NEXT_PUBLIC_PROVIDER_MODE ?? "facebook_page_backed";
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
   const queryClient = useQueryClient();
+  const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.providerStatus });
+  const instagramReady = providers?.instagram_ready ?? false;
+  const canSync = instagramReady && providers?.provider_mode !== "mock";
   const autoSyncStarted = useRef(false);
   const syncMutation = useMutation({
     mutationFn: () => api.syncMetaComments(),
@@ -37,9 +40,10 @@ export default function SettingsPage() {
     const searchParams = new URLSearchParams(window.location.search);
     if (searchParams.get("meta") === "connected") {
       autoSyncStarted.current = true;
+      queryClient.invalidateQueries({ queryKey: ["providers"] });
       syncMutation.mutate();
     }
-  }, [syncMutation]);
+  }, [syncMutation, queryClient]);
 
   return (
     <div className="space-y-6">
@@ -84,6 +88,15 @@ export default function SettingsPage() {
               <div className="text-sm text-[var(--muted-foreground)]">
                 Import the latest comments from the connected Instagram professional account.
               </div>
+              {!canSync ? (
+                <div className="mt-2 text-sm text-[var(--warning)]">
+                  {providers?.provider_mode === "mock"
+                    ? "Backend is in mock mode. Set PROVIDER_MODE=facebook_page_backed on the Vercel backend project, redeploy, then connect Meta again."
+                    : !providers?.facebook_ready
+                      ? "Connect Facebook & Instagram first (see Provider Status above)."
+                      : "Facebook is connected but no Instagram professional account was linked. In Meta, link IG Business to your Facebook Page, then reconnect."}
+                </div>
+              ) : null}
               {syncMutation.data ? (
                 <div className="mt-2 text-sm text-[var(--muted-foreground)]">
                   Synced {syncMutation.data.comments_created} new and {syncMutation.data.comments_updated} existing comments from{" "}
@@ -96,7 +109,12 @@ export default function SettingsPage() {
                 </div>
               ) : null}
             </div>
-            <Button type="button" variant="secondary" disabled={syncMutation.isPending} onClick={() => syncMutation.mutate()}>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={syncMutation.isPending || !canSync}
+              onClick={() => syncMutation.mutate()}
+            >
               <RefreshCw size={16} />
               {syncMutation.isPending ? "Syncing" : "Sync comments"}
             </Button>

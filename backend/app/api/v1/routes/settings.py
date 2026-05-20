@@ -56,7 +56,11 @@ async def provider_status(session: AsyncSession = Depends(get_session)) -> Provi
     if not facebook_credentials:
         setup_warnings.append("No Facebook Page token is saved yet. Click Connect Facebook & Instagram after Meta env is set.")
     if facebook_credentials and not instagram_accounts:
-        setup_warnings.append("Facebook is connected, but no linked Instagram professional account was returned by Meta.")
+        setup_warnings.append(
+            "Facebook is connected, but Meta did not return a Page-linked Instagram account. "
+            "Make sure the Instagram account is Professional/Creator and linked to the selected Facebook Page, then reconnect. "
+            "If it was linked after connecting, click Sync comments once after this deploy so the backend can repair the saved account."
+        )
 
     return ProviderStatus(
         provider_mode=settings.provider_mode,

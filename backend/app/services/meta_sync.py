@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.security import decrypt_secret
 from app.models.entities import Comment, InstagramAccount, Lead, ProviderCredential
+from app.models.enums import ProviderType
 from app.services.normalization import detect_language, normalize_comment_text
 
 
@@ -36,13 +37,14 @@ class MetaSyncService:
             select(InstagramAccount).where(InstagramAccount.is_active.is_(True)).order_by(InstagramAccount.updated_at.desc())
         )
         if not account:
+            account = await self._repair_instagram_account_from_saved_pages(session)
+        if not account:
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    "No connected Instagram account found. In Settings, click Connect Facebook & Instagram and authorize "
-                    "the Facebook Page that owns your Instagram professional account. If you already connected, check that "
-                    "the Meta callback returned to Settings with meta=connected and that PROVIDER_MODE=facebook_page_backed "
-                    "is set on the backend Vercel project."
+                    "No connected Instagram account found. Facebook may be connected, but Meta did not return a Page-linked "
+                    "Instagram Professional account. Make sure your Instagram is Professional/Creator, linked to the same "
+                    "Facebook Page you selected during authorization, then reconnect Facebook & Instagram."
                 ),
             )
 
@@ -104,6 +106,61 @@ class MetaSyncService:
         if not response.is_success:
             raise HTTPException(status_code=400, detail={"meta_error": data})
         return data
+
+    async def _repair_instagram_account_from_saved_pages(self, session: AsyncSession) -> InstagramAccount | None:
+        credentials = (
+            await session.scalars(
+                select(ProviderCredential)
+                .where(
+                    ProviderCredential.provider_type == ProviderType.facebook_page_backed,
+                    ProviderCredential.is_active.is_(True),
+                    ProviderCredential.encrypted_access_token.is_not(None),
+                )
+                .order_by(ProviderCredential.updated_at.desc())
+            )
+        ).all()
+        if not credentials:
+            return None
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            for credential in credentials:
+                if not credential.external_account_id or not credential.encrypted_access_token:
+                    continue
+                access_token = decrypt_secret(credential.encrypted_access_token)
+                page = await self._get_json(
+                    client,
+                    credential.external_account_id,
+                    access_token,
+                    fields=(
+                        "id,name,"
+                        "instagram_business_account{id,username,profile_picture_url},"
+                        "connected_instagram_account{id,username,profile_picture_url}"
+                    ),
+                )
+                instagram_account = page.get("instagram_business_account") or page.get("connected_instagram_account")
+                if not instagram_account or not instagram_account.get("id"):
+                    continue
+
+                account = await session.scalar(
+                    select(InstagramAccount).where(InstagramAccount.ig_user_id == str(instagram_account.get("id")))
+                )
+                if not account:
+                    account = InstagramAccount(
+                        provider_credential_id=credential.id,
+                        ig_user_id=str(instagram_account.get("id")),
+                        username=instagram_account.get("username") or "instagram",
+                        auth_path=ProviderType.facebook_page_backed.value,
+                    )
+                    session.add(account)
+
+                account.provider_credential_id = credential.id
+                account.username = instagram_account.get("username") or account.username
+                account.auth_path = ProviderType.facebook_page_backed.value
+                account.is_active = True
+                await session.flush()
+                return account
+
+        return None
 
     async def _upsert_comment(self, session: AsyncSession, media_item: dict, comment: dict) -> bool:
         comment_id = str(comment.get("id") or "")

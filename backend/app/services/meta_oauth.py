@@ -86,7 +86,11 @@ class MetaOAuthService:
                 client,
                 "me/accounts",
                 long_token,
-                fields="id,name,access_token,instagram_business_account{id,username,profile_picture_url}",
+                fields=(
+                    "id,name,access_token,"
+                    "instagram_business_account{id,username,profile_picture_url},"
+                    "connected_instagram_account{id,username,profile_picture_url}"
+                ),
                 limit=100,
             )
 
@@ -99,7 +103,7 @@ class MetaOAuthService:
             credential = await self._upsert_page_credential(session, page, user, page_token)
             connected_pages.append({"id": page.get("id"), "name": page.get("name")})
 
-            instagram_account = page.get("instagram_business_account")
+            instagram_account = self._page_instagram_account(page)
             if instagram_account:
                 account = await self._upsert_instagram_account(session, credential, instagram_account)
                 connected_instagram.append({"id": account.ig_user_id, "username": account.username})
@@ -125,6 +129,10 @@ class MetaOAuthService:
         if not token:
             raise HTTPException(status_code=400, detail={"meta_error": payload})
         return token
+
+    @staticmethod
+    def _page_instagram_account(page: dict) -> dict | None:
+        return page.get("instagram_business_account") or page.get("connected_instagram_account")
 
     async def _exchange_long_lived_token(self, client: httpx.AsyncClient, token: str) -> str:
         payload = await self._get_json(
@@ -177,6 +185,7 @@ class MetaOAuthService:
             "facebook_page": {"id": page.get("id"), "name": page.get("name")},
             "facebook_user": {"id": user.get("id"), "name": user.get("name"), "email": user.get("email")},
             "instagram_business_account": page.get("instagram_business_account"),
+            "connected_instagram_account": page.get("connected_instagram_account"),
         }
         await session.flush()
         return credential
