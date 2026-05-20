@@ -8,11 +8,7 @@ import { api } from "@/services/api";
 
 export default function WebhooksPage() {
   const { data = [] } = useQuery({ queryKey: ["webhooks"], queryFn: api.webhooks });
-  const rows = data.length
-    ? data
-    : [
-        { id: "sample-ig", provider: "mock", event_id: "local-sample", signature_valid: true, status: "processed", created_at: new Date().toISOString() }
-      ];
+  const rows = data;
 
   return (
     <div className="space-y-6">
@@ -49,6 +45,9 @@ export default function WebhooksPage() {
                 ))}
               </tbody>
             </Table>
+            {rows.length === 0 ? (
+              <p className="mt-4 text-sm text-[var(--muted-foreground)]">No webhook deliveries yet.</p>
+            ) : null}
           </div>
         </CardContent>
       </Card>

@@ -275,3 +275,66 @@ class AuditLog(Base, IdMixin, TimestampMixin):
     entity_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
 
+
+class Funnel(Base, IdMixin, TimestampMixin):
+    __tablename__ = "funnels"
+
+    name: Mapped[str] = mapped_column(String(255), index=True)
+    status: Mapped[str] = mapped_column(String(64), default="active", index=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class FunnelStep(Base, IdMixin, TimestampMixin):
+    __tablename__ = "funnel_steps"
+
+    funnel_id: Mapped[str] = mapped_column(ForeignKey("funnels.id", ondelete="CASCADE"), index=True)
+    step_order: Mapped[int] = mapped_column(Integer, default=0)
+    channel: Mapped[str] = mapped_column(String(64), index=True)
+    delay_hours: Mapped[int] = mapped_column(Integer, default=0)
+    message_template: Mapped[str] = mapped_column(Text)
+    min_lead_score: Mapped[int] = mapped_column(Integer, default=0)
+    max_lead_score: Mapped[int] = mapped_column(Integer, default=100)
+    lifecycle_stage: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class LeadFunnelState(Base, IdMixin, TimestampMixin):
+    __tablename__ = "lead_funnel_states"
+
+    lead_id: Mapped[str] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"), index=True)
+    funnel_id: Mapped[str] = mapped_column(ForeignKey("funnels.id", ondelete="CASCADE"), index=True)
+    current_step_order: Mapped[int] = mapped_column(Integer, default=0)
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String(64), default="active", index=True)
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+    __table_args__ = (Index("ix_lead_funnel_unique", "lead_id", "funnel_id", unique=True),)
+
+
+class Order(Base, IdMixin, TimestampMixin):
+    __tablename__ = "orders"
+
+    external_order_id: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    lead_id: Mapped[str | None] = mapped_column(ForeignKey("leads.id", ondelete="SET NULL"), nullable=True, index=True)
+    source: Mapped[str] = mapped_column(String(64), default="shopify", index=True)
+    status: Mapped[str] = mapped_column(String(64), default="pending", index=True)
+    total_amount: Mapped[float] = mapped_column(Float, default=0)
+    currency: Mapped[str] = mapped_column(String(8), default="INR")
+    customer_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    customer_phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    line_items: Mapped[list] = mapped_column(JSON, default=list)
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class CartAbandonment(Base, IdMixin, TimestampMixin):
+    __tablename__ = "cart_abandonments"
+
+    external_cart_id: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    lead_id: Mapped[str | None] = mapped_column(ForeignKey("leads.id", ondelete="SET NULL"), nullable=True, index=True)
+    source: Mapped[str] = mapped_column(String(64), default="shopify", index=True)
+    status: Mapped[str] = mapped_column(String(64), default="abandoned", index=True)
+    checkout_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    recovery_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+

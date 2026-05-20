@@ -34,14 +34,18 @@ export async function proxyBackendPost(
       }
     });
   } catch (error) {
+    const isLocalhost = apiBaseUrl.includes("localhost") || apiBaseUrl.includes("127.0.0.1");
+    const fix = isLocalhost
+      ? "Start the backend: from repo root run `docker compose up -d postgres redis api` OR `cd backend && uvicorn app.main:app --reload`. Or point frontend/.env.local to https://marketing-ai-gymu.vercel.app/api/v1 and restart `npm run dev`."
+      : "Check BACKEND_API_BASE_URL in frontend/.env.local and confirm the deployed API responds at /health.";
+
     return NextResponse.json(
       {
         error:
           error instanceof Error
             ? `Cannot reach backend at ${apiBaseUrl}: ${error.message}`
             : `Cannot reach backend at ${apiBaseUrl}`,
-        fix:
-          "Set BACKEND_API_BASE_URL or NEXT_PUBLIC_API_BASE_URL on the frontend Vercel project to https://marketing-ai-gymu.vercel.app/api/v1, then redeploy the frontend."
+        fix
       },
       { status: 502 }
     );

@@ -1,16 +1,18 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
+from app.api.dependencies import get_current_user
 from app.api.v1.router import api_router
 from app.core.config import get_cors_origin_regex, get_cors_origins, get_settings
 from app.core.logging import configure_logging
 from app.database.session import dispose_engine, get_engine
 from app.middleware.cors import VercelCorsMiddleware
 from app.middleware.security import RateLimitMiddleware, SecurityHeadersMiddleware
+from app.queues.enqueue import close_arq_pool
 from app.realtime import manager
 from app.webhooks.routes import router as webhook_router
 
@@ -19,6 +21,7 @@ from app.webhooks.routes import router as webhook_router
 async def lifespan(app: FastAPI):
     configure_logging()
     yield
+    await close_arq_pool()
     await dispose_engine()
 
 
@@ -50,7 +53,9 @@ app.include_router(webhook_router)
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(_: Request, exc: Exception) -> JSONResponse:
-    return JSONResponse(status_code=500, content={"detail": str(exc)})
+    if settings.debug:
+        return JSONResponse(status_code=500, content={"detail": str(exc)})
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 @app.get("/")
@@ -68,7 +73,7 @@ async def health() -> dict:
     return {"status": "ok", "service": settings.app_name}
 
 
-@app.get("/debug/config")
+@app.get("/debug/config", dependencies=[Depends(get_current_user)])
 async def debug_config() -> dict:
     return {
         "environment": settings.environment,
@@ -78,6 +83,7 @@ async def debug_config() -> dict:
         "meta_app_id_configured": bool(settings.meta_app_id),
         "meta_app_secret_configured": bool(settings.meta_app_secret),
         "provider_mode": settings.provider_mode,
+        "chroma_host": settings.chroma_host,
     }
 
 

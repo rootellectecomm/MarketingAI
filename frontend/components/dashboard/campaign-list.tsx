@@ -29,15 +29,15 @@ export function CampaignList() {
             <div className="grid gap-3 text-sm sm:grid-cols-3">
               <div className="flex items-center gap-2">
                 <MessageSquareText size={16} className="text-[var(--primary)]" />
-                Public replies
+                {campaign.public_reply_enabled ? "Public replies on" : "Public replies off"}
               </div>
               <div className="flex items-center gap-2">
                 <Send size={16} className="text-[var(--primary)]" />
-                Private DMs
+                {campaign.dm_enabled ? "DMs on" : "DMs off"}
               </div>
               <div className="flex items-center gap-2">
                 <Bot size={16} className="text-[var(--primary)]" />
-                AI scoring
+                {campaign.whatsapp_followup_enabled ? "WhatsApp follow-up" : "No WA follow-up"}
               </div>
             </div>
           </CardContent>
@@ -46,4 +46,3 @@ export function CampaignList() {
     </div>
   );
 }
-

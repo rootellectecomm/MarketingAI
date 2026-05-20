@@ -12,7 +12,6 @@ import { api } from "@/services/api";
 export default function SettingsPage() {
   const providerMode = process.env.NEXT_PUBLIC_PROVIDER_MODE ?? "facebook_page_backed";
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
-  const metaConnectUrl = `${apiBaseUrl.replace(/\/$/, "")}/meta/connect`;
   const queryClient = useQueryClient();
   const autoSyncStarted = useRef(false);
   const syncMutation = useMutation({
@@ -61,12 +60,23 @@ export default function SettingsPage() {
                 Authorize the Facebook Page that owns the linked Instagram professional account.
               </div>
             </div>
-            <a
-              href={metaConnectUrl}
-              className="inline-flex h-10 items-center justify-center rounded-md bg-[var(--primary)] px-4 text-sm font-medium text-[var(--primary-foreground)] transition hover:opacity-90"
+            <Button
+              type="button"
+              onClick={async () => {
+                const result = await api.metaConnectUrl();
+                if (result.url) {
+                  window.location.href = result.url;
+                  return;
+                }
+                alert(
+                  result.missing_or_placeholder_env?.length
+                    ? `Configure backend env: ${result.missing_or_placeholder_env.join(", ")}`
+                    : "Meta connect is not ready. Check backend settings."
+                );
+              }}
             >
               Connect Facebook & Instagram
-            </a>
+            </Button>
           </div>
           <div className="mt-4 flex flex-col gap-3 rounded-md border border-[var(--border)] p-3 md:flex-row md:items-center md:justify-between">
             <div>

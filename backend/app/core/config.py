@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     whatsapp_access_token: str | None = None
     whatsapp_opt_in_template_name: str = "rootellect_followup"
 
+    shopify_webhook_secret: str | None = None
+    shopify_store_domain: str | None = None
+
     rate_limit_requests: int = 120
     rate_limit_window_seconds: int = 60
 

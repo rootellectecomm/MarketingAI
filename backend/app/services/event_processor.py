@@ -12,6 +12,7 @@ from app.database.session import get_sessionmaker
 from app.models.entities import (
     AiLog,
     AnalyticsEvent,
+    Campaign,
     Comment,
     Conversation,
     IntentAnalysis,
@@ -24,13 +25,17 @@ from app.models.entities import (
 )
 from app.models.enums import EventStatus, EventType, ModerationAction, SendDecision
 from app.moderation.engine import ModerationEngine
-from app.schemas.ai import AIRequestContext
+from app.schemas.ai import AIRequestContext, ThreadMessage
 from app.schemas.social import NormalizedEvent
-from app.services.action_engine import ActionEngine
+from app.services.action_engine import ActionEngine, ActionContext
+from app.services.campaign_matcher import CampaignMatcher
 from app.services.lead_scoring import LeadScoringService
 from app.services.meta_oauth import get_active_page_access_token
 from app.services.normalization import detect_language, normalize_comment_text
+from app.services.phone_utils import extract_phone
 from app.services.provider_factory import get_instagram_provider, get_whatsapp_provider
+from app.services.retention_jobs import RetentionJobRunner
+from app.services.wellness_segments import detect_wellness_segment
 
 
 class EventProcessor:
@@ -40,6 +45,7 @@ class EventProcessor:
         self.ai = OpenAIDecisionClient()
         self.leads = LeadScoringService()
         self.actions = ActionEngine()
+        self.campaigns = CampaignMatcher()
 
     async def process(self, session: AsyncSession, normalized: NormalizedEvent, webhook_log_id: str | None = None) -> None:
         existing = await session.scalar(
@@ -90,6 +96,14 @@ class EventProcessor:
                 )
             )
 
+        matched_campaigns = await self.campaigns.match_active(session, text)
+        lead = await self._upsert_lead(session, normalized)
+        phone = extract_phone(text)
+        if phone:
+            lead.phone = phone
+            lead.whatsapp_opt_in = True
+
+        thread_history = await self._load_thread_history(session, conversation.id)
         moderation = self.moderation.evaluate(text)
         retrieved = await self.rag.retrieve(text)
         decision, latency_ms, ai_input = await self.ai.generate_decision(
@@ -99,8 +113,19 @@ class EventProcessor:
                 channel=normalized.event_type.value,
                 media_id=normalized.media_id,
                 retrieved_context=retrieved,
+                thread_history=thread_history,
+                lead_score=lead.score,
+                lifecycle_stage=lead.lifecycle_stage,
+                matched_campaigns=[c.name for c in matched_campaigns],
+                campaign_product_focus=self.campaigns.product_focus(matched_campaigns),
+                allow_public_reply=self.campaigns.allows_public_reply(matched_campaigns),
+                allow_dm=self.campaigns.allows_dm(matched_campaigns),
+                allow_whatsapp_followup=self.campaigns.allows_whatsapp_followup(matched_campaigns),
+                wellness_segment=detect_wellness_segment(text),
             )
         )
+
+        decision = self._apply_campaign_gates(decision, matched_campaigns)
 
         if moderation.action != ModerationAction.allow:
             decision.moderation_action = moderation.action
@@ -148,13 +173,13 @@ class EventProcessor:
             )
         )
 
-        lead = await self._upsert_lead(session, normalized, decision.lead_score_delta)
         repeat_engagements = await session.scalar(
             select(func.count()).select_from(SocialEvent).where(SocialEvent.actor_id == normalized.actor_id)
         )
         score_delta = self.leads.score_delta(decision, int(repeat_engagements or 0))
         lead.score = max(0, min(100, lead.score + score_delta))
         session.add(LeadScore(lead_id=lead.id, score_delta=score_delta, reason=decision.intent))
+        await RetentionJobRunner().enroll_new_leads(session, lead)
 
         page_access_token = await get_active_page_access_token(session)
         provider = (
@@ -162,17 +187,59 @@ class EventProcessor:
             if normalized.event_type == EventType.whatsapp_message
             else get_instagram_provider(access_token=page_access_token)
         )
-        await self.actions.execute(session, provider, event, comment, decision)
+        await self.actions.execute(
+            session,
+            provider,
+            event,
+            comment,
+            decision,
+            ActionContext(
+                conversation=conversation,
+                lead=lead,
+                channel=normalized.event_type.value,
+                allow_whatsapp_followup=self.campaigns.allows_whatsapp_followup(matched_campaigns)
+                or bool(decision.whatsapp_followup),
+            ),
+        )
 
         session.add(
             AnalyticsEvent(
                 event_name="social_event_processed",
                 entity_type="social_event",
                 entity_id=event.id,
-                properties={"intent": decision.intent, "sentiment": decision.sentiment, "send_decision": decision.send_decision},
+                properties={
+                    "intent": decision.intent,
+                    "sentiment": decision.sentiment,
+                    "send_decision": decision.send_decision,
+                    "campaigns": [c.name for c in matched_campaigns],
+                },
             )
         )
         event.status = EventStatus.processed
+
+    def _apply_campaign_gates(self, decision, matched_campaigns: list[Campaign]):
+        if matched_campaigns and not self.campaigns.allows_public_reply(matched_campaigns):
+            decision.public_reply = ""
+        if matched_campaigns and not self.campaigns.allows_dm(matched_campaigns):
+            decision.private_dm = ""
+        if matched_campaigns and self.campaigns.allows_whatsapp_followup(matched_campaigns) and not decision.whatsapp_followup:
+            decision.whatsapp_followup = (
+                "Hi — continuing from Instagram. Happy to share calm, science-backed guidance "
+                "on what may suit you. What would you like help with today?"
+            )
+        return decision
+
+    async def _load_thread_history(self, session: AsyncSession, conversation_id: str) -> list[ThreadMessage]:
+        result = await session.execute(
+            select(Message)
+            .where(Message.conversation_id == conversation_id)
+            .order_by(Message.created_at.desc())
+            .limit(12)
+        )
+        messages = list(reversed(result.scalars().all()))
+        return [
+            ThreadMessage(direction=item.direction, body=item.body, channel=item.channel) for item in messages
+        ]
 
     async def _upsert_conversation(self, session: AsyncSession, normalized: NormalizedEvent) -> Conversation:
         external_user_id = normalized.actor_id or normalized.actor_username or "unknown"
@@ -196,10 +263,11 @@ class EventProcessor:
         await session.flush()
         return conversation
 
-    async def _upsert_lead(self, session: AsyncSession, normalized: NormalizedEvent, score_delta: int) -> Lead:
+    async def _upsert_lead(self, session: AsyncSession, normalized: NormalizedEvent) -> Lead:
         external_user_id = normalized.actor_id or normalized.actor_username or "unknown"
+        source_channel = "whatsapp" if normalized.event_type == EventType.whatsapp_message else "instagram"
         lead = await session.scalar(
-            select(Lead).where(Lead.external_user_id == external_user_id, Lead.source_channel == "instagram")
+            select(Lead).where(Lead.external_user_id == external_user_id, Lead.source_channel == source_channel)
         )
         if lead:
             lead.username = normalized.actor_username or lead.username
@@ -207,9 +275,9 @@ class EventProcessor:
         lead = Lead(
             external_user_id=external_user_id,
             username=normalized.actor_username,
-            source_channel="instagram",
-            score=max(0, score_delta),
-            tags=["instagram"],
+            source_channel=source_channel,
+            score=0,
+            tags=[source_channel],
         )
         session.add(lead)
         await session.flush()
@@ -227,9 +295,12 @@ async def process_webhook_payload(log_id: str, payload: dict, channel: str) -> N
                 log.status = EventStatus.queued
             for event in events:
                 await processor.process(session, event, webhook_log_id=log_id)
+            if log:
+                log.status = EventStatus.processed
             await session.commit()
         except Exception as exc:
             if log:
                 log.status = EventStatus.failed
                 log.error_message = str(exc)
             await session.commit()
+            raise

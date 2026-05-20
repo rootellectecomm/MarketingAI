@@ -4,10 +4,12 @@ Production-grade monorepo for Rootellect's AI-powered Instagram and WhatsApp aut
 
 ## What Is Included
 
-- FastAPI backend with async SQLAlchemy, PostgreSQL, Redis queue worker, JWT auth, rate limiting, security headers, webhook validation, and audit-ready data models.
-- OpenAI-ready AI pipeline with deterministic local fallback, structured decision schema, moderation, RAG retrieval, lead scoring, and action execution.
-- Provider adapter layer for mock Meta, Instagram Professional Login, Facebook Page-backed Instagram, and WhatsApp Cloud API.
-- Next.js App Router dashboard with TypeScript, TailwindCSS, shadcn-style UI primitives, dark mode, analytics, comments, leads, campaigns, moderation, knowledge, webhooks, and settings.
+- FastAPI backend with async SQLAlchemy, PostgreSQL, **ARQ Redis workers** (webhooks + cron), JWT auth, rate limiting, security headers, webhook validation, and audit-ready data models.
+- OpenAI-ready AI pipeline with **conversation-aware prompts**, campaign keyword matching, wellness segmentation, moderation, **Chroma RAG** (with markdown fallback), lead scoring, and action execution.
+- Provider adapter layer for mock Meta, Instagram Professional Login, Facebook Page-backed Instagram, and **WhatsApp Cloud API** (text + templates).
+- **Funnel engine** (IG DM → WhatsApp nurture), retention jobs, conversation recovery, and **Shopify cart recovery** webhooks.
+- **Content generation API** for reels, stories, carousels, and founder scripts.
+- Next.js App Router dashboard with live conversations, knowledge CRUD, campaign creation, funnels, content studio, auth middleware, and settings with authenticated Meta connect.
 - Docker Compose for API, worker, Postgres, Redis, ChromaDB, and Nginx.
 - Alembic migration, env templates, CI workflow, seed knowledge, API docs, and deployment notes.
 

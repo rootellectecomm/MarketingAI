@@ -2,9 +2,17 @@ import { campaigns, comments, leads, metrics } from "@/lib/mock-data";
 import type {
   BootstrapResponse,
   Campaign,
+  CampaignCreate,
   CommentItem,
+  ContentGenerateResult,
+  ConversationItem,
+  ConversationMessage,
   DashboardMetrics,
+  FunnelSummary,
+  KnowledgeDocument,
+  KnowledgeCreate,
   Lead,
+  MetaConnectUrl,
   MetaSyncResult,
   ProviderStatus,
   TokenResponse
@@ -45,6 +53,7 @@ function handleUnauthorized(response: Response) {
     return;
   }
   localStorage.removeItem("rootellect_token");
+  document.cookie = "rootellect_token=; path=/; max-age=0";
   if (window.location.pathname !== "/login") {
     window.location.href = "/login";
   }
@@ -55,7 +64,7 @@ async function getJson<T>(path: string, fallback: T): Promise<T> {
     const token = typeof window !== "undefined" ? localStorage.getItem("rootellect_token") : null;
     const response = await fetch(`${API_BASE_URL}${path}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
-      next: { revalidate: 15 }
+      cache: "no-store"
     });
     if (!response.ok) {
       handleUnauthorized(response);
@@ -75,7 +84,8 @@ async function postJson<T>(path: string, body?: unknown): Promise<T> {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
-    body: body === undefined ? undefined : JSON.stringify(body)
+    body: body === undefined ? undefined : JSON.stringify(body),
+    cache: "no-store"
   });
   if (!response.ok) {
     handleUnauthorized(response);
@@ -88,12 +98,12 @@ async function readApiError(response: Response): Promise<string> {
   const raw = await response.text();
   if (!raw) {
     return response.status === 500
-      ? "Internal Server Error. Redeploy the backend and check DATABASE_URL on Vercel."
+      ? "Internal Server Error. Check backend logs and DATABASE_URL."
       : `Request failed with ${response.status}`;
   }
   if (raw.startsWith("<")) {
     return response.status === 500
-      ? "Internal Server Error. Backend crashed. Check Vercel backend logs and DATABASE_URL."
+      ? "Internal Server Error. Backend may be unreachable."
       : `Request failed with ${response.status}`;
   }
   try {
@@ -138,7 +148,7 @@ async function authProxyPost<T>(path: string, body?: unknown, options?: { allowS
     });
   } catch {
     throw new Error(
-      "Cannot reach the frontend auth proxy. Set BACKEND_API_BASE_URL or NEXT_PUBLIC_API_BASE_URL on the frontend Vercel project to https://marketing-ai-gymu.vercel.app/api/v1, then redeploy the frontend."
+      "Cannot reach the login proxy. Ensure `npm run dev` is running and BACKEND_API_BASE_URL in frontend/.env.local points to a live API."
     );
   }
   if (!response.ok && !options?.allowStatuses?.includes(response.status)) {
@@ -151,12 +161,7 @@ async function authProxyPost<T>(path: string, body?: unknown, options?: { allowS
 }
 
 async function resetAdmin(): Promise<void> {
-  let response: Response;
-  try {
-    response = await fetch("/api/auth/reset-admin", { method: "POST", cache: "no-store" });
-  } catch {
-    throw new Error("Cannot reach the reset-admin proxy on this frontend deployment.");
-  }
+  const response = await fetch("/api/auth/reset-admin", { method: "POST", cache: "no-store" });
   if (!response.ok) {
     throw new Error(await readApiError(response));
   }
@@ -170,9 +175,18 @@ export const api = {
   comments: () => getJson<CommentItem[]>("/comments", USE_MOCK_DATA ? comments : []),
   leads: () => getJson<Lead[]>("/leads", USE_MOCK_DATA ? leads : []),
   campaigns: () => getJson<Campaign[]>("/campaigns", USE_MOCK_DATA ? campaigns : []),
+  createCampaign: (payload: CampaignCreate) => postJson<Campaign>("/campaigns", payload),
+  conversations: () => getJson<ConversationItem[]>("/conversations", []),
+  conversationMessages: (id: string) => getJson<ConversationMessage[]>(`/conversations/${id}/messages`, []),
+  knowledge: () => getJson<KnowledgeDocument[]>("/knowledge", []),
+  createKnowledge: (payload: KnowledgeCreate) => postJson<KnowledgeDocument>("/knowledge", payload),
+  funnels: () => getJson<FunnelSummary[]>("/funnels", []),
+  generateContent: (payload: { content_type: string; topic: string; product_focus?: string[] }) =>
+    postJson<ContentGenerateResult>("/content/generate", payload),
   aiLogs: () => getJson<Array<Record<string, unknown>>>("/ai-logs", []),
   moderation: () => getJson<Array<Record<string, unknown>>>("/moderation", []),
   webhooks: () => getJson<Array<Record<string, unknown>>>("/webhooks/logs", []),
+  metaConnectUrl: () => getJson<MetaConnectUrl>("/meta/connect-url", { status: "setup_required" }),
   syncMetaComments: (params = { media_limit: 8, comments_per_media: 25 }) =>
     postJson<MetaSyncResult>(
       `/meta/sync/comments?media_limit=${params.media_limit}&comments_per_media=${params.comments_per_media}`

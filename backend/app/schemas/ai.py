@@ -58,6 +58,14 @@ class AIDecision(BaseModel):
     send_decision: SendDecision = SendDecision.queue_for_review
 
 
+class ThreadMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    direction: str
+    body: str
+    channel: str = "instagram"
+
+
 class AIRequestContext(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -66,6 +74,15 @@ class AIRequestContext(BaseModel):
     channel: str = "instagram"
     media_id: str | None = None
     retrieved_context: list[RetrievedContext] = Field(default_factory=list)
+    thread_history: list[ThreadMessage] = Field(default_factory=list)
+    lead_score: int = 0
+    lifecycle_stage: str = "new"
+    matched_campaigns: list[str] = Field(default_factory=list)
+    campaign_product_focus: list[str] = Field(default_factory=list)
+    allow_public_reply: bool = True
+    allow_dm: bool = True
+    allow_whatsapp_followup: bool = False
+    wellness_segment: str | None = None
 
 
 class ModerationResult(BaseModel):

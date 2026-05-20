@@ -65,6 +65,13 @@ class MockMetaProvider:
     async def like_comment(self, comment_id: str) -> ProviderActionResult:
         return ProviderActionResult(ok=True, provider_action_id=f"mock-like-{comment_id}")
 
+    async def send_whatsapp_text(self, phone: str, message: str) -> ProviderActionResult:
+        return ProviderActionResult(
+            ok=True,
+            provider_action_id=f"mock-wa-text-{phone}",
+            response={"phone": phone, "message": message},
+        )
+
     async def send_whatsapp_template(
         self, phone: str, template_name: str, variables: list[str] | None = None
     ) -> ProviderActionResult:

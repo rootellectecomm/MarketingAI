@@ -88,6 +88,83 @@ export type ProviderStatus = {
   }>;
 };
 
+export type ConversationItem = {
+  id: string;
+  external_user_id: string;
+  username: string | null;
+  channel: string;
+  last_message_at: string | null;
+  is_open: boolean;
+};
+
+export type ConversationMessage = {
+  id: string;
+  direction: string;
+  body: string;
+  channel: string;
+  created_at: string;
+};
+
+export type KnowledgeDocument = {
+  id: string;
+  title: string;
+  category: string;
+  content: string;
+  source: string;
+  is_active: boolean;
+  created_at: string;
+};
+
+export type KnowledgeCreate = {
+  title: string;
+  category: string;
+  content: string;
+  source?: string;
+};
+
+export type CampaignCreate = {
+  name: string;
+  status?: string;
+  product_focus?: string[];
+  keyword_triggers?: string[];
+  public_reply_enabled?: boolean;
+  dm_enabled?: boolean;
+  whatsapp_followup_enabled?: boolean;
+};
+
+export type FunnelSummary = {
+  id: string;
+  name: string;
+  status: string;
+  description: string | null;
+  steps: Array<{
+    id: string;
+    step_order: number;
+    channel: string;
+    delay_hours: number;
+    message_template: string;
+  }>;
+  enrolled_leads: number;
+};
+
+export type ContentGenerateResult = {
+  content_type: string;
+  topic: string;
+  mode: string;
+  title?: string;
+  hooks?: string[];
+  body?: string;
+  cta?: string;
+  hashtags?: string[];
+  raw?: string;
+};
+
+export type MetaConnectUrl = {
+  status: string;
+  url?: string;
+  missing_or_placeholder_env?: string[];
+};
+
 export type MetaSyncResult = {
   instagram_account: {
     id: string;

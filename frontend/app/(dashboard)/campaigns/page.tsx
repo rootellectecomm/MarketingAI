@@ -1,3 +1,4 @@
+import { CampaignForm } from "@/components/dashboard/campaign-form";
 import { CampaignList } from "@/components/dashboard/campaign-list";
 
 export default function CampaignsPage() {
@@ -7,8 +8,8 @@ export default function CampaignsPage() {
         <h1 className="text-2xl font-semibold">Campaigns</h1>
         <p className="text-sm text-[var(--muted-foreground)]">Keyword triggers, product focus, and automated response channels.</p>
       </div>
+      <CampaignForm />
       <CampaignList />
     </div>
   );
 }
-

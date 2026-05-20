@@ -11,6 +11,23 @@ from app.services.meta_sync import MetaSyncService
 router = APIRouter(prefix="/meta", tags=["meta"])
 
 
+@router.get("/connect-url")
+async def connect_meta_url(_: str = Depends(get_current_user)) -> dict:
+    settings = get_settings()
+    missing = [
+        key
+        for key, value in {
+            "META_APP_ID": settings.meta_app_id,
+            "META_APP_SECRET": settings.meta_app_secret,
+            "META_OAUTH_REDIRECT_URI": settings.meta_oauth_redirect_uri,
+        }.items()
+        if not value or str(value).startswith("replace-")
+    ]
+    if missing:
+        return {"status": "setup_required", "missing_or_placeholder_env": missing}
+    return {"status": "ok", "url": MetaOAuthService().authorization_url()}
+
+
 @router.get("/connect", response_model=None)
 async def connect_meta() -> Response:
     settings = get_settings()

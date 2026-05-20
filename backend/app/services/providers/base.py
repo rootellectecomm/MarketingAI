@@ -37,6 +37,9 @@ class SocialProvider(Protocol):
     async def like_comment(self, comment_id: str) -> ProviderActionResult:
         ...
 
+    async def send_whatsapp_text(self, phone: str, message: str) -> ProviderActionResult:
+        ...
+
     async def send_whatsapp_template(
         self, phone: str, template_name: str, variables: list[str] | None = None
     ) -> ProviderActionResult:

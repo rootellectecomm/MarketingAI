@@ -31,6 +31,8 @@ const nav = [
   { href: "/conversations", label: "Conversations", icon: Inbox },
   { href: "/leads", label: "Leads", icon: UsersRound },
   { href: "/campaigns", label: "Campaigns", icon: Megaphone },
+  { href: "/funnels", label: "Funnels", icon: ScrollText },
+  { href: "/content", label: "Content", icon: Bot },
   { href: "/moderation", label: "Moderation", icon: ShieldAlert },
   { href: "/knowledge", label: "Knowledge", icon: Brain },
   { href: "/webhooks", label: "Webhooks", icon: Webhook },

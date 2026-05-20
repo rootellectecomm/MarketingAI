@@ -32,7 +32,7 @@ export default function ModerationPage() {
                 </tr>
               </thead>
               <tbody>
-                {(data.length ? data : [{ id: "sample", action: "escalate", flags: ["medical_risk"], confidence: 0.84, notes: "Medical-risk wording requires safe handling." }]).map((item) => (
+                {data.map((item) => (
                   <tr key={String(item.id)}>
                     <Td>{String(item.action)}</Td>
                     <Td>{Array.isArray(item.flags) ? item.flags.join(", ") : ""}</Td>
@@ -42,6 +42,9 @@ export default function ModerationPage() {
                 ))}
               </tbody>
             </Table>
+            {data.length === 0 ? (
+              <p className="mt-4 text-sm text-[var(--muted-foreground)]">No moderation events yet.</p>
+            ) : null}
           </div>
         </CardContent>
       </Card>

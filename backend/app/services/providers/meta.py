@@ -112,6 +112,33 @@ class WhatsAppCloudProvider(MockMetaProvider):
                     )
         return events
 
+    async def send_whatsapp_text(self, phone: str, message: str) -> ProviderActionResult:
+        if not self.access_token or not self.settings.whatsapp_phone_number_id:
+            return ProviderActionResult(ok=False, error="Missing WhatsApp credentials")
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": phone.lstrip("+"),
+            "type": "text",
+            "text": {"preview_url": True, "body": message},
+        }
+        url = (
+            f"https://graph.facebook.com/{self.settings.meta_graph_version}/"
+            f"{self.settings.whatsapp_phone_number_id}/messages"
+        )
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                response = await client.post(url, json=payload, headers={"Authorization": f"Bearer {self.access_token}"})
+            data = response.json() if response.content else {}
+            return ProviderActionResult(
+                ok=response.is_success,
+                provider_action_id=str((data.get("messages") or [{}])[0].get("id", "")),
+                status_code=response.status_code,
+                response=data,
+                error=None if response.is_success else str(data),
+            )
+        except httpx.HTTPError as exc:
+            return ProviderActionResult(ok=False, error=str(exc))
+
     async def send_whatsapp_template(
         self, phone: str, template_name: str, variables: list[str] | None = None
     ) -> ProviderActionResult:
