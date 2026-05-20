@@ -90,6 +90,7 @@ export const campaigns: Campaign[] = [
     public_reply_enabled: true,
     dm_enabled: true,
     whatsapp_followup_enabled: false,
+    metadata_json: { target_media_urls: [], target_media_ids: [], target_media_shortcodes: [] },
     created_at: "2026-05-10T12:00:00Z"
   },
   {
@@ -101,6 +102,7 @@ export const campaigns: Campaign[] = [
     public_reply_enabled: true,
     dm_enabled: true,
     whatsapp_followup_enabled: true,
+    metadata_json: { target_media_urls: [], target_media_ids: [], target_media_shortcodes: [] },
     created_at: "2026-05-09T12:00:00Z"
   }
 ];

@@ -117,7 +117,7 @@ async def meta_callback(
 
 @router.post("/sync/comments", dependencies=[Depends(get_current_user)])
 async def sync_meta_comments(
-    media_limit: int = Query(default=8, ge=1, le=25),
+    media_limit: int = Query(default=25, ge=1, le=50),
     comments_per_media: int = Query(default=25, ge=1, le=50),
     session: AsyncSession = Depends(get_session),
 ) -> dict:

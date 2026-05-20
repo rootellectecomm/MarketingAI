@@ -27,7 +27,7 @@ from app.models.enums import EventStatus, EventType, ModerationAction, SendDecis
 from app.moderation.engine import ModerationEngine
 from app.schemas.ai import AIRequestContext, ThreadMessage
 from app.schemas.social import NormalizedEvent
-from app.services.action_engine import ActionEngine, ActionContext
+from app.services.action_engine import ActionContext, ActionEngine
 from app.services.campaign_matcher import CampaignMatcher
 from app.services.lead_scoring import LeadScoringService
 from app.services.meta_oauth import get_active_page_access_token
@@ -47,40 +47,63 @@ class EventProcessor:
         self.actions = ActionEngine()
         self.campaigns = CampaignMatcher()
 
-    async def process(self, session: AsyncSession, normalized: NormalizedEvent, webhook_log_id: str | None = None) -> None:
+    async def process(
+        self,
+        session: AsyncSession,
+        normalized: NormalizedEvent,
+        webhook_log_id: str | None = None,
+        force: bool = False,
+    ) -> None:
         existing = await session.scalar(
             select(SocialEvent).where(SocialEvent.provider_event_id == normalized.provider_event_id)
         )
-        if existing:
+        if existing and not force:
             existing.status = EventStatus.duplicate
             return
 
-        event = SocialEvent(
+        event = existing or SocialEvent(
             provider=normalized.provider,
             event_type=normalized.event_type,
             provider_event_id=normalized.provider_event_id,
             actor_id=normalized.actor_id,
             actor_username=normalized.actor_username,
-            status=EventStatus.processing,
             payload=normalized.payload,
             webhook_log_id=webhook_log_id,
         )
-        session.add(event)
+        event.provider = normalized.provider
+        event.event_type = normalized.event_type
+        event.actor_id = normalized.actor_id
+        event.actor_username = normalized.actor_username
+        event.status = EventStatus.processing
+        event.payload = normalized.payload
+        event.webhook_log_id = webhook_log_id or event.webhook_log_id
+        if not existing:
+            session.add(event)
         await session.flush()
 
         text = normalize_comment_text(normalized.text or "")
         comment: Comment | None = None
         if normalized.event_type == EventType.instagram_comment:
-            comment = Comment(
-                social_event_id=event.id,
-                provider_comment_id=normalized.provider_comment_id or normalized.provider_event_id,
-                media_id=normalized.media_id,
-                username=normalized.actor_username,
-                text=normalized.text or "",
-                normalized_text=text,
-                language=detect_language(text),
-            )
-            session.add(comment)
+            provider_comment_id = normalized.provider_comment_id or normalized.provider_event_id
+            comment = await session.scalar(select(Comment).where(Comment.provider_comment_id == provider_comment_id))
+            if comment:
+                comment.social_event_id = comment.social_event_id or event.id
+                comment.media_id = normalized.media_id or comment.media_id
+                comment.username = normalized.actor_username or comment.username
+                comment.text = normalized.text or comment.text
+                comment.normalized_text = text
+                comment.language = detect_language(text)
+            else:
+                comment = Comment(
+                    social_event_id=event.id,
+                    provider_comment_id=provider_comment_id,
+                    media_id=normalized.media_id,
+                    username=normalized.actor_username,
+                    text=normalized.text or "",
+                    normalized_text=text,
+                    language=detect_language(text),
+                )
+                session.add(comment)
             await session.flush()
 
         conversation = await self._upsert_conversation(session, normalized)
@@ -96,7 +119,12 @@ class EventProcessor:
                 )
             )
 
-        matched_campaigns = await self.campaigns.match_active(session, text)
+        matched_campaigns = await self.campaigns.match_active(
+            session,
+            text,
+            media_id=normalized.media_id,
+            media_permalink=normalized.payload.get("media_permalink") or normalized.payload.get("permalink"),
+        )
         lead = await self._upsert_lead(session, normalized)
         phone = extract_phone(text)
         if phone:

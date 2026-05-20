@@ -33,6 +33,18 @@ class CampaignCreate(BaseModel):
     public_reply_enabled: bool = True
     dm_enabled: bool = True
     whatsapp_followup_enabled: bool = False
+    metadata_json: dict = Field(default_factory=dict)
+
+
+class CampaignUpdate(BaseModel):
+    name: str | None = None
+    status: str | None = None
+    product_focus: list[str] | None = None
+    keyword_triggers: list[str] | None = None
+    public_reply_enabled: bool | None = None
+    dm_enabled: bool | None = None
+    whatsapp_followup_enabled: bool | None = None
+    metadata_json: dict | None = None
 
 
 class CampaignRead(CampaignCreate):

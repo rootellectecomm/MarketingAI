@@ -43,6 +43,12 @@ export type Campaign = {
   public_reply_enabled: boolean;
   dm_enabled: boolean;
   whatsapp_followup_enabled: boolean;
+  metadata_json: {
+    target_media_urls?: string[];
+    target_media_ids?: string[];
+    target_media_shortcodes?: string[];
+    [key: string]: unknown;
+  };
   created_at: string;
 };
 
@@ -130,6 +136,7 @@ export type CampaignCreate = {
   public_reply_enabled?: boolean;
   dm_enabled?: boolean;
   whatsapp_followup_enabled?: boolean;
+  metadata_json?: Campaign["metadata_json"];
 };
 
 export type FunnelSummary = {
@@ -173,4 +180,6 @@ export type MetaSyncResult = {
   media_seen: number;
   comments_created: number;
   comments_updated: number;
+  automation_processed?: number;
+  automation_skipped?: number;
 };

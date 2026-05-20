@@ -157,19 +157,21 @@ class ActionEngine:
     ) -> ActionAttempt:
         idempotency_key = f"{event.provider_event_id}:{action_type}"
         existing = await session.scalar(select(ActionAttempt).where(ActionAttempt.idempotency_key == idempotency_key))
-        if existing:
+        if existing and existing.status == ActionStatus.sent:
             return existing
 
         message = decision.public_reply if action_type == "reply_to_comment" else decision.private_dm
-        attempt = ActionAttempt(
+        attempt = existing or ActionAttempt(
             social_event_id=event.id,
             action_type=action_type,
             provider=event.provider,
             idempotency_key=idempotency_key,
-            status=ActionStatus.pending,
-            request_json={"comment_id": comment.provider_comment_id, "message": message},
-            attempts=1,
+            attempts=0,
         )
+        attempt.social_event_id = event.id
+        attempt.status = ActionStatus.pending
+        attempt.request_json = {"comment_id": comment.provider_comment_id, "message": message}
+        attempt.attempts += 1
         if action_type == "hide_comment":
             result = await provider.hide_comment(comment.provider_comment_id)
             comment.hidden = result.ok
@@ -180,7 +182,8 @@ class ActionEngine:
         attempt.status = ActionStatus.sent if result.ok else ActionStatus.failed
         attempt.response_json = result.response
         attempt.error_message = result.error
-        session.add(attempt)
+        if not existing:
+            session.add(attempt)
         return attempt
 
     async def _run_dm_action(
@@ -193,20 +196,23 @@ class ActionEngine:
     ) -> ActionAttempt:
         idempotency_key = f"{event.provider_event_id}:send_dm"
         existing = await session.scalar(select(ActionAttempt).where(ActionAttempt.idempotency_key == idempotency_key))
-        if existing:
+        if existing and existing.status == ActionStatus.sent:
             return existing
 
-        attempt = ActionAttempt(
+        attempt = existing or ActionAttempt(
             social_event_id=event.id,
             action_type="send_dm",
             provider=event.provider,
             idempotency_key=idempotency_key,
-            request_json={"recipient_id": recipient_id, "message": decision.private_dm},
-            attempts=1,
+            attempts=0,
         )
+        attempt.social_event_id = event.id
+        attempt.request_json = {"recipient_id": recipient_id, "message": decision.private_dm}
+        attempt.attempts += 1
         result = await provider.send_dm(recipient_id, decision.private_dm)
         attempt.status = ActionStatus.sent if result.ok else ActionStatus.failed
         attempt.response_json = result.response
         attempt.error_message = result.error
-        session.add(attempt)
+        if not existing:
+            session.add(attempt)
         return attempt

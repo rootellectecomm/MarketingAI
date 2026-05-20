@@ -94,6 +94,24 @@ async function postJson<T>(path: string, body?: unknown): Promise<T> {
   return (await response.json()) as T;
 }
 
+async function patchJson<T>(path: string, body?: unknown): Promise<T> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("rootellect_token") : null;
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    cache: "no-store"
+  });
+  if (!response.ok) {
+    handleUnauthorized(response);
+    throw new Error(await readApiError(response));
+  }
+  return (await response.json()) as T;
+}
+
 async function readApiError(response: Response): Promise<string> {
   const raw = await response.text();
   if (!raw) {
@@ -176,6 +194,7 @@ export const api = {
   leads: () => getJson<Lead[]>("/leads", USE_MOCK_DATA ? leads : []),
   campaigns: () => getJson<Campaign[]>("/campaigns", USE_MOCK_DATA ? campaigns : []),
   createCampaign: (payload: CampaignCreate) => postJson<Campaign>("/campaigns", payload),
+  updateCampaign: (id: string, payload: Partial<CampaignCreate>) => patchJson<Campaign>(`/campaigns/${id}`, payload),
   conversations: () => getJson<ConversationItem[]>("/conversations", []),
   conversationMessages: (id: string) => getJson<ConversationMessage[]>(`/conversations/${id}/messages`, []),
   knowledge: () => getJson<KnowledgeDocument[]>("/knowledge", []),
@@ -187,7 +206,7 @@ export const api = {
   moderation: () => getJson<Array<Record<string, unknown>>>("/moderation", []),
   webhooks: () => getJson<Array<Record<string, unknown>>>("/webhooks/logs", []),
   metaConnectUrl: () => getJson<MetaConnectUrl>("/meta/connect-url", { status: "setup_required" }),
-  syncMetaComments: (params = { media_limit: 8, comments_per_media: 25 }) =>
+  syncMetaComments: (params = { media_limit: 25, comments_per_media: 25 }) =>
     postJson<MetaSyncResult>(
       `/meta/sync/comments?media_limit=${params.media_limit}&comments_per_media=${params.comments_per_media}`
     ),
