@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ProviderStatusPanel } from "@/components/dashboard/provider-status";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ export default function SettingsPage() {
   const instagramReady = providers?.instagram_ready ?? false;
   const canSync = instagramReady && providers?.provider_mode !== "mock";
   const autoSyncStarted = useRef(false);
+  const [metaCallbackMessage, setMetaCallbackMessage] = useState<string | null>(null);
   const syncMutation = useMutation({
     mutationFn: () => api.syncMetaComments(),
     onSuccess: async () => {
@@ -41,6 +42,15 @@ export default function SettingsPage() {
     if (searchParams.get("meta") === "connected") {
       autoSyncStarted.current = true;
       queryClient.invalidateQueries({ queryKey: ["providers"] });
+      const warning = searchParams.get("warning");
+      const message = searchParams.get("message");
+      if (warning) {
+        setMetaCallbackMessage(
+          message ||
+            "Meta returned from authorization, but did not provide the required Facebook Page and Instagram account."
+        );
+        return;
+      }
       syncMutation.mutate();
     }
   }, [syncMutation, queryClient]);
@@ -52,6 +62,11 @@ export default function SettingsPage() {
         <p className="text-sm text-[var(--muted-foreground)]">Provider readiness, credentials, and automation thresholds.</p>
       </div>
       <ProviderStatusPanel />
+      {metaCallbackMessage ? (
+        <div className="rounded-md border border-[var(--warning)] bg-[color-mix(in_srgb,var(--warning)_12%,transparent)] p-3 text-sm text-[var(--warning)]">
+          {metaCallbackMessage}
+        </div>
+      ) : null}
       <Card>
         <CardHeader>
           <CardTitle>Facebook And Instagram</CardTitle>

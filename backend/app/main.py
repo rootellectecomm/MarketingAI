@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy import text
 
 from app.api.dependencies import get_current_user
@@ -15,6 +15,9 @@ from app.middleware.security import RateLimitMiddleware, SecurityHeadersMiddlewa
 from app.queues.enqueue import close_arq_pool
 from app.realtime import manager
 from app.webhooks.routes import router as webhook_router
+from fastapi import Query
+
+from app.webhooks.verify import verify_meta_hub_challenge
 
 
 @asynccontextmanager
@@ -49,6 +52,16 @@ app.add_middleware(VercelCorsMiddleware)
 
 app.include_router(api_router, prefix=settings.api_v1_prefix)
 app.include_router(webhook_router)
+
+
+@app.get("/webhook", response_class=PlainTextResponse, tags=["meta webhooks"])
+async def verify_webhook(
+    hub_mode: str | None = Query(default=None, alias="hub.mode"),
+    hub_verify_token: str | None = Query(default=None, alias="hub.verify_token"),
+    hub_challenge: str | None = Query(default=None, alias="hub.challenge"),
+) -> PlainTextResponse:
+    """Meta subscription verify — returns hub.challenge as plain text (not JSON)."""
+    return verify_meta_hub_challenge(hub_mode, hub_verify_token, hub_challenge)
 
 
 @app.exception_handler(Exception)

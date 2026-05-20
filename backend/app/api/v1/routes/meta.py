@@ -90,8 +90,23 @@ async def meta_callback(
     success_url = get_settings().meta_connect_success_url
     if success_url:
         separator = "&" if "?" in success_url else "?"
+        facebook_pages = len(result["facebook_pages"])
+        instagram_accounts = len(result["instagram_accounts"])
+        warning = ""
+        if facebook_pages == 0:
+            warning = (
+                "&warning=no_facebook_pages"
+                "&message=Meta%20did%20not%20return%20any%20Facebook%20Pages.%20"
+                "During%20authorization%2C%20select%20the%20Page%20linked%20to%20Instagram%20and%20allow%20Page%20permissions."
+            )
+        elif instagram_accounts == 0:
+            warning = (
+                "&warning=no_instagram_account"
+                "&message=Facebook%20Page%20connected%2C%20but%20Meta%20did%20not%20return%20a%20linked%20Instagram%20Professional%20account."
+            )
         return RedirectResponse(
-            f"{success_url}{separator}meta=connected&instagram_accounts={len(result['instagram_accounts'])}",
+            f"{success_url}{separator}meta=connected&facebook_pages={facebook_pages}"
+            f"&instagram_accounts={instagram_accounts}{warning}",
             status_code=302,
         )
     return JSONResponse(result)

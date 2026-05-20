@@ -28,7 +28,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.bucket = InMemoryTokenBucket(settings.rate_limit_requests, settings.rate_limit_window_seconds)
 
     async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
-        if request.url.path in {"/health", "/ready"} or request.url.path.startswith("/webhooks/meta"):
+        if request.url.path in {"/health", "/ready", "/webhook"} or request.url.path.startswith("/webhooks/meta"):
             return await call_next(request)
         client = request.client.host if request.client else "unknown"
         if not self.bucket.allow(client):

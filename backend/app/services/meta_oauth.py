@@ -66,6 +66,8 @@ class MetaOAuthService:
             "redirect_uri": self.settings.meta_oauth_redirect_uri,
             "state": self.build_state(),
             "response_type": "code",
+            # Force Meta to re-prompt if the user previously skipped Page permissions.
+            "auth_type": "rerequest",
         }
         if self.settings.meta_login_config_id:
             params["config_id"] = self.settings.meta_login_config_id

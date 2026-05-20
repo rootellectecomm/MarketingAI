@@ -1,5 +1,6 @@
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -8,31 +9,29 @@ from app.models.entities import WebhookLog
 from app.models.enums import EventStatus, ProviderType
 from app.queues.enqueue import enqueue_webhook_job
 from app.services.event_processor import process_webhook_payload
-from app.services.provider_factory import get_instagram_provider, get_whatsapp_provider
 from app.webhooks.meta import verify_meta_signature, webhook_fingerprint
+from app.webhooks.verify import verify_meta_hub_challenge
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/webhooks/meta", tags=["meta webhooks"])
 
 
-@router.get("/instagram")
+@router.get("/instagram", response_class=PlainTextResponse)
 async def verify_instagram(
     hub_mode: str | None = Query(default=None, alias="hub.mode"),
     hub_verify_token: str | None = Query(default=None, alias="hub.verify_token"),
     hub_challenge: str | None = Query(default=None, alias="hub.challenge"),
-) -> Response:
-    challenge = await get_instagram_provider().verify_webhook(hub_mode, hub_verify_token, hub_challenge)
-    return Response(content=challenge, media_type="text/plain")
+) -> PlainTextResponse:
+    return verify_meta_hub_challenge(hub_mode, hub_verify_token, hub_challenge)
 
 
-@router.get("/whatsapp")
+@router.get("/whatsapp", response_class=PlainTextResponse)
 async def verify_whatsapp(
     hub_mode: str | None = Query(default=None, alias="hub.mode"),
     hub_verify_token: str | None = Query(default=None, alias="hub.verify_token"),
     hub_challenge: str | None = Query(default=None, alias="hub.challenge"),
-) -> Response:
-    challenge = await get_whatsapp_provider().verify_webhook(hub_mode, hub_verify_token, hub_challenge)
-    return Response(content=challenge, media_type="text/plain")
+) -> PlainTextResponse:
+    return verify_meta_hub_challenge(hub_mode, hub_verify_token, hub_challenge)
 
 
 @router.post("/instagram")
