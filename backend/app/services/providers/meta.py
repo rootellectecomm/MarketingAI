@@ -87,9 +87,10 @@ class FacebookPageBackedProvider(InstagramProfessionalProvider):
 
 
 class WhatsAppCloudProvider(MockMetaProvider):
-    def __init__(self, access_token: str | None = None) -> None:
+    def __init__(self, access_token: str | None = None, phone_number_id: str | None = None) -> None:
         self.settings = get_settings()
         self.access_token = access_token or self.settings.whatsapp_access_token
+        self.phone_number_id = phone_number_id or self.settings.whatsapp_phone_number_id
 
     async def normalize_event(self, payload: dict) -> list[NormalizedEvent]:
         events: list[NormalizedEvent] = []
@@ -113,7 +114,7 @@ class WhatsAppCloudProvider(MockMetaProvider):
         return events
 
     async def send_whatsapp_text(self, phone: str, message: str) -> ProviderActionResult:
-        if not self.access_token or not self.settings.whatsapp_phone_number_id:
+        if not self.access_token or not self.phone_number_id:
             return ProviderActionResult(ok=False, error="Missing WhatsApp credentials")
         payload = {
             "messaging_product": "whatsapp",
@@ -123,7 +124,7 @@ class WhatsAppCloudProvider(MockMetaProvider):
         }
         url = (
             f"https://graph.facebook.com/{self.settings.meta_graph_version}/"
-            f"{self.settings.whatsapp_phone_number_id}/messages"
+            f"{self.phone_number_id}/messages"
         )
         try:
             async with httpx.AsyncClient(timeout=20) as client:
@@ -142,7 +143,7 @@ class WhatsAppCloudProvider(MockMetaProvider):
     async def send_whatsapp_template(
         self, phone: str, template_name: str, variables: list[str] | None = None
     ) -> ProviderActionResult:
-        if not self.access_token or not self.settings.whatsapp_phone_number_id:
+        if not self.access_token or not self.phone_number_id:
             return ProviderActionResult(ok=False, error="Missing WhatsApp credentials")
         payload = {
             "messaging_product": "whatsapp",
@@ -161,7 +162,7 @@ class WhatsAppCloudProvider(MockMetaProvider):
         }
         url = (
             f"https://graph.facebook.com/{self.settings.meta_graph_version}/"
-            f"{self.settings.whatsapp_phone_number_id}/messages"
+            f"{self.phone_number_id}/messages"
         )
         try:
             async with httpx.AsyncClient(timeout=20) as client:

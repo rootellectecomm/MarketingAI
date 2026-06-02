@@ -193,6 +193,108 @@ class Campaign(Base, IdMixin, TimestampMixin):
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
+class InstagramPost(Base, IdMixin, TimestampMixin):
+    __tablename__ = "instagram_posts"
+
+    instagram_account_id: Mapped[str | None] = mapped_column(ForeignKey("instagram_accounts.id"), nullable=True, index=True)
+    media_id: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    media_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    caption: Mapped[str | None] = mapped_column(Text, nullable=True)
+    thumbnail_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    permalink: Mapped[str | None] = mapped_column(Text, nullable=True)
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class GiveawayAutomation(Base, IdMixin, TimestampMixin):
+    __tablename__ = "giveaway_automations"
+
+    name: Mapped[str] = mapped_column(String(255), index=True)
+    status: Mapped[str] = mapped_column(String(64), default="draft", index=True)
+    instagram_account_id: Mapped[str | None] = mapped_column(ForeignKey("instagram_accounts.id"), nullable=True, index=True)
+    instagram_post_id: Mapped[str | None] = mapped_column(ForeignKey("instagram_posts.id"), nullable=True, index=True)
+    media_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    media_permalink: Mapped[str | None] = mapped_column(Text, nullable=True)
+    trigger_type: Mapped[str] = mapped_column(String(64), default="keyword_match")
+    trigger_keywords: Mapped[list[str]] = mapped_column(JSON, default=list)
+    public_reply_text: Mapped[str] = mapped_column(Text, default="Thanks for joining. Please check your DM.")
+    public_reply_variations: Mapped[list[str]] = mapped_column(JSON, default=list)
+    dm_message_text: Mapped[str] = mapped_column(
+        Text,
+        default="You're in. Follow us and reply I have followed to receive your reward.",
+    )
+    follow_button_text: Mapped[str] = mapped_column(String(128), default="I have followed")
+    reply_limit: Mapped[int] = mapped_column(Integer, default=500)
+    cooldown_hours: Mapped[int] = mapped_column(Integer, default=24)
+    exclusion_keywords: Mapped[list[str]] = mapped_column(JSON, default=list)
+    brand_signature: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class GiveawayContent(Base, IdMixin, TimestampMixin):
+    __tablename__ = "giveaway_contents"
+
+    automation_id: Mapped[str] = mapped_column(ForeignKey("giveaway_automations.id", ondelete="CASCADE"), index=True)
+    content_type: Mapped[str] = mapped_column(String(64), default="coupon")
+    coupon_code: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    message_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    carousel_slides: Mapped[list[dict]] = mapped_column(JSON, default=list)
+    cta_label: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    cta_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    unique_coupon_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class GiveawayParticipant(Base, IdMixin, TimestampMixin):
+    __tablename__ = "giveaway_participants"
+
+    automation_id: Mapped[str] = mapped_column(ForeignKey("giveaway_automations.id", ondelete="CASCADE"), index=True)
+    comment_id: Mapped[str | None] = mapped_column(ForeignKey("comments.id", ondelete="SET NULL"), nullable=True, index=True)
+    social_event_id: Mapped[str | None] = mapped_column(ForeignKey("social_events.id", ondelete="SET NULL"), nullable=True)
+    lead_id: Mapped[str | None] = mapped_column(ForeignKey("leads.id", ondelete="SET NULL"), nullable=True, index=True)
+    instagram_user_id: Mapped[str] = mapped_column(String(255), index=True)
+    instagram_username: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    comment_text: Mapped[str] = mapped_column(Text, default="")
+    trigger_matched: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[str] = mapped_column(String(64), default="commented", index=True)
+    reward_sent: Mapped[bool] = mapped_column(Boolean, default=False)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tags: Mapped[list[str]] = mapped_column(JSON, default=list)
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+    __table_args__ = (Index("ix_giveaway_participant_unique", "automation_id", "instagram_user_id", unique=True),)
+
+
+class AutomationEventLog(Base, IdMixin, TimestampMixin):
+    __tablename__ = "automation_event_logs"
+
+    automation_type: Mapped[str] = mapped_column(String(64), default="giveaway", index=True)
+    automation_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    participant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    event_name: Mapped[str] = mapped_column(String(128), index=True)
+    status: Mapped[str] = mapped_column(String(64), default="ok", index=True)
+    message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class GlobalGiveawaySetting(Base, IdMixin, TimestampMixin):
+    __tablename__ = "global_giveaway_settings"
+
+    default_public_reply_text: Mapped[str] = mapped_column(Text, default="Thanks for joining. Please check your DM.")
+    public_reply_variations: Mapped[list[str]] = mapped_column(JSON, default=list)
+    comment_reply_limit: Mapped[int] = mapped_column(Integer, default=500)
+    exclusion_keywords: Mapped[list[str]] = mapped_column(JSON, default=list)
+    cooldown_hours: Mapped[int] = mapped_column(Integer, default=24)
+    fallback_dm_text: Mapped[str] = mapped_column(Text, default="Thanks for joining the giveaway.")
+    brand_signature: Mapped[str] = mapped_column(String(255), default="Rootellect")
+    opt_out_keywords: Mapped[list[str]] = mapped_column(JSON, default=lambda: ["stop", "unsubscribe"])
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
 class ModerationLog(Base, IdMixin, TimestampMixin):
     __tablename__ = "moderation_logs"
 

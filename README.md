@@ -47,6 +47,7 @@ Production-grade monorepo for **Rootellect's** AI-powered Instagram and WhatsApp
 ### Growth & retention
 
 - **Campaigns** — keyword triggers, product focus, public reply / DM / WhatsApp toggles
+- **Giveaway automations** — post/reel targeting, comment triggers, public reply, DM follow-confirm flow, reward delivery, participants, analytics, and Rootellect templates.
 - **Funnel engine** — multi-step nurture (e.g. IG DM → WhatsApp) with scheduled steps via ARQ cron
 - **Retention jobs** — stale conversation recovery, scheduled touchpoints
 - **Shopify** — cart abandonment webhooks and recovery flows (optional)
@@ -308,6 +309,7 @@ See `backend/.env.example` for the full backend list including `ADMIN_EMAIL`, `R
 | `/conversations` | DM / WhatsApp threads |
 | `/leads` | Lead CRM, scores, lifecycle |
 | `/campaigns` | Keyword campaigns & automation rules |
+| `/giveaways` | Instagram giveaway wizard, participants, analytics, and reward delivery |
 | `/funnels` | Multi-step nurture funnels |
 | `/content` | AI content generation studio |
 | `/moderation` | Safety actions & flags |
@@ -329,6 +331,7 @@ Base path: **`/api/v1`**
 | Dashboard | `GET /dashboard/metrics` |
 | Social | `GET /comments`, `GET /conversations`, `GET /conversations/{id}/messages` |
 | CRM | `GET /leads`, `PATCH /leads/{id}`, `GET/POST /campaigns` |
+| Giveaways | `GET/POST/PATCH /giveaways`, `GET /giveaways/{id}/participants`, `POST /giveaways/{id}/draw`, `GET /giveaways/analytics/summary`, `GET /giveaways/templates/rootellect` |
 | Funnels | `GET /funnels` |
 | Content | `POST /content/generate` |
 | Commerce | `POST /commerce/shopify/webhook` |
@@ -388,6 +391,32 @@ Invoke-RestMethod -Method Post http://localhost:8000/webhooks/meta/instagram `
 ```
 
 In `ENVIRONMENT=local`, missing signatures are logged but not rejected. In production, invalid signatures return `401`.
+
+---
+
+## Giveaway Automation
+
+Open **Giveaways** in the dashboard to build an Instagram giveaway workflow:
+
+1. Paste/select the Instagram reel or post URL.
+2. Choose trigger mode: any comment, keyword match, or exact phrase.
+3. Configure public comment reply and the DM follow-confirmation message.
+4. Set reward content: coupon code, message, image URL, carousel slide text, or CTA link.
+5. Activate, then click **Sync comments + process entries** or rely on Instagram webhooks.
+
+The backend records every participant with statuses such as `commented`, `public_reply_sent`, `dm_sent`, `follow_confirmed`, and `reward_sent`. The DM flow asks users to reply `I have followed`; when that message arrives through Instagram messaging webhooks, the reward is delivered automatically.
+
+Rootellect templates are available for:
+
+- **Mind Calm giveaway** — `calm`, `sleep`, `stress`, `overthinking`
+- **Women Balance giveaway** — `hormones`, `pms`, `energy`, `balance`
+
+Run the new migration before using the module:
+
+```powershell
+cd backend
+alembic upgrade head
+```
 
 ---
 

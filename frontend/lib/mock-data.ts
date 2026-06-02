@@ -1,4 +1,4 @@
-import type { Campaign, CommentItem, DashboardMetrics, Lead } from "@/types/api";
+import type { Campaign, CommentItem, DashboardMetrics, Giveaway, GiveawayAnalytics, GiveawayParticipant, Lead } from "@/types/api";
 
 export const metrics: DashboardMetrics = {
   comments: 1284,
@@ -106,4 +106,81 @@ export const campaigns: Campaign[] = [
     created_at: "2026-05-09T12:00:00Z"
   }
 ];
+
+export const giveaways: Giveaway[] = [
+  {
+    id: "giveaway-1",
+    name: "Mind Calm giveaway",
+    status: "active",
+    media_id: "reel_41",
+    media_permalink: "https://www.instagram.com/reel/mindcalm/",
+    trigger_type: "keyword_match",
+    trigger_keywords: ["calm", "sleep", "stress", "overthinking"],
+    public_reply_text: "Thanks for joining. Please check your DM.",
+    public_reply_variations: ["You're in. Check your DM.", "Thanks for joining - details sent in DM."],
+    dm_message_text: "You're in. Follow Rootellect and reply I have followed to receive your Mind Calm wellness guide.",
+    follow_button_text: "I have followed",
+    reply_limit: 500,
+    cooldown_hours: 24,
+    exclusion_keywords: ["fake", "scam", "bad", "not interested"],
+    brand_signature: "Rootellect",
+    starts_at: null,
+    ends_at: null,
+    metadata_json: {},
+    created_at: "2026-05-20T09:00:00Z",
+    participant_count: 128,
+    reward_sent_count: 76,
+    content: {
+      content_type: "coupon",
+      coupon_code: "MINDCALM10",
+      message_text: "Here is your Mind Calm sleep routine and giveaway coupon.",
+      cta_label: "Open guide",
+      cta_url: "https://rootellect.com"
+    }
+  }
+];
+
+export const giveawayParticipants: GiveawayParticipant[] = [
+  {
+    id: "participant-1",
+    automation_id: "giveaway-1",
+    instagram_user_id: "1781",
+    instagram_username: "wellnesswithriya",
+    comment_text: "Need calm sleep guide",
+    trigger_matched: "calm",
+    status: "reward_sent",
+    reward_sent: true,
+    error_message: null,
+    tags: ["giveaway", "winner"],
+    created_at: "2026-05-20T09:15:00Z"
+  },
+  {
+    id: "participant-2",
+    automation_id: "giveaway-1",
+    instagram_user_id: "1782",
+    instagram_username: "fitmomsclub",
+    comment_text: "stress routine pls",
+    trigger_matched: "stress",
+    status: "dm_sent",
+    reward_sent: false,
+    error_message: null,
+    tags: ["giveaway"],
+    created_at: "2026-05-20T09:18:00Z"
+  }
+];
+
+export const giveawayAnalytics: GiveawayAnalytics = {
+  total_comments_captured: 164,
+  valid_participants: 128,
+  excluded_comments: 9,
+  dms_sent: 118,
+  rewards_claimed: 76,
+  conversion_rate: 59.38,
+  top_trigger_keywords: [
+    { keyword: "calm", count: 46 },
+    { keyword: "sleep", count: 39 },
+    { keyword: "stress", count: 31 }
+  ],
+  post_performance: [{ automation_id: "giveaway-1", participants: 128 }]
+};
 

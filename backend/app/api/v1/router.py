@@ -9,6 +9,7 @@ from app.api.v1.routes import (
     conversations,
     dashboard,
     funnels,
+    giveaways,
     knowledge,
     leads,
     logs,
@@ -26,6 +27,7 @@ api_router.include_router(comments.router)
 api_router.include_router(conversations.router)
 api_router.include_router(leads.router)
 api_router.include_router(campaigns.router)
+api_router.include_router(giveaways.router)
 api_router.include_router(knowledge.router)
 api_router.include_router(funnels.router)
 api_router.include_router(content.router)

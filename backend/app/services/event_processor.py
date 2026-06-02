@@ -29,6 +29,7 @@ from app.schemas.ai import AIRequestContext, ThreadMessage
 from app.schemas.social import NormalizedEvent
 from app.services.action_engine import ActionContext, ActionEngine
 from app.services.campaign_matcher import CampaignMatcher
+from app.services.giveaway_processor import GiveawayProcessor
 from app.services.lead_scoring import LeadScoringService
 from app.services.meta_oauth import get_active_page_access_token
 from app.services.normalization import detect_language, normalize_comment_text
@@ -46,6 +47,7 @@ class EventProcessor:
         self.leads = LeadScoringService()
         self.actions = ActionEngine()
         self.campaigns = CampaignMatcher()
+        self.giveaways = GiveawayProcessor()
 
     async def process(
         self,
@@ -130,6 +132,14 @@ class EventProcessor:
         if phone:
             lead.phone = phone
             lead.whatsapp_opt_in = True
+
+        if normalized.event_type == EventType.instagram_dm and await self.giveaways.handle_follow_confirmation(session, event):
+            event.status = EventStatus.processed
+            return
+
+        if await self.giveaways.handle_comment(session, event, comment, lead):
+            event.status = EventStatus.processed
+            return
 
         thread_history = await self._load_thread_history(session, conversation.id)
         moderation = self.moderation.evaluate(text)

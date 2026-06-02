@@ -183,3 +183,78 @@ export type MetaSyncResult = {
   automation_processed?: number;
   automation_skipped?: number;
 };
+
+export type GiveawayContent = {
+  id?: string;
+  automation_id?: string;
+  content_type: string;
+  coupon_code?: string | null;
+  message_text?: string | null;
+  image_url?: string | null;
+  carousel_slides?: Array<Record<string, string>>;
+  cta_label?: string | null;
+  cta_url?: string | null;
+  expires_at?: string | null;
+  unique_coupon_enabled?: boolean;
+  metadata_json?: Record<string, unknown>;
+};
+
+export type Giveaway = {
+  id: string;
+  name: string;
+  status: string;
+  media_id: string | null;
+  media_permalink: string | null;
+  trigger_type: "any_comment" | "keyword_match" | "exact_phrase";
+  trigger_keywords: string[];
+  public_reply_text: string;
+  public_reply_variations: string[];
+  dm_message_text: string;
+  follow_button_text: string;
+  reply_limit: number;
+  cooldown_hours: number;
+  exclusion_keywords: string[];
+  brand_signature: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  metadata_json: Record<string, unknown>;
+  created_at: string;
+  content: GiveawayContent | null;
+  participant_count: number;
+  reward_sent_count: number;
+};
+
+export type GiveawayCreate = Omit<Giveaway, "id" | "created_at" | "participant_count" | "reward_sent_count"> & {
+  content: GiveawayContent;
+};
+
+export type GiveawayParticipant = {
+  id: string;
+  automation_id: string;
+  instagram_user_id: string;
+  instagram_username: string | null;
+  comment_text: string;
+  trigger_matched: string | null;
+  status: string;
+  reward_sent: boolean;
+  error_message: string | null;
+  tags: string[];
+  created_at: string;
+};
+
+export type GiveawayAnalytics = {
+  total_comments_captured: number;
+  valid_participants: number;
+  excluded_comments: number;
+  dms_sent: number;
+  rewards_claimed: number;
+  conversion_rate: number;
+  top_trigger_keywords: Array<{ keyword: string; count: number }>;
+  post_performance: Array<{ automation_id: string; participants: number }>;
+};
+
+export type GiveawayDrawResult = {
+  automation_id: string;
+  winner_ids: string[];
+  message: string;
+};

@@ -1,4 +1,4 @@
-import { campaigns, comments, leads, metrics } from "@/lib/mock-data";
+import { campaigns, comments, giveawayAnalytics, giveawayParticipants, giveaways, leads, metrics } from "@/lib/mock-data";
 import type {
   BootstrapResponse,
   Campaign,
@@ -9,6 +9,11 @@ import type {
   ConversationMessage,
   DashboardMetrics,
   FunnelSummary,
+  Giveaway,
+  GiveawayAnalytics,
+  GiveawayCreate,
+  GiveawayDrawResult,
+  GiveawayParticipant,
   KnowledgeDocument,
   KnowledgeCreate,
   Lead,
@@ -210,6 +215,24 @@ export const api = {
     postJson<MetaSyncResult>(
       `/meta/sync/comments?media_limit=${params.media_limit}&comments_per_media=${params.comments_per_media}`
     ),
+  giveaways: () => getJson<Giveaway[]>("/giveaways", USE_MOCK_DATA ? giveaways : []),
+  createGiveaway: (payload: GiveawayCreate) => postJson<Giveaway>("/giveaways", payload),
+  updateGiveaway: (id: string, payload: Partial<GiveawayCreate>) => patchJson<Giveaway>(`/giveaways/${id}`, payload),
+  giveawayParticipants: (id: string) =>
+    getJson<GiveawayParticipant[]>(`/giveaways/${id}/participants`, USE_MOCK_DATA ? giveawayParticipants : []),
+  giveawayAnalytics: () =>
+    getJson<GiveawayAnalytics>("/giveaways/analytics/summary", USE_MOCK_DATA ? giveawayAnalytics : {
+      total_comments_captured: 0,
+      valid_participants: 0,
+      excluded_comments: 0,
+      dms_sent: 0,
+      rewards_claimed: 0,
+      conversion_rate: 0,
+      top_trigger_keywords: [],
+      post_performance: []
+    }),
+  drawGiveaway: (id: string, count = 1) => postJson<GiveawayDrawResult>(`/giveaways/${id}/draw?count=${count}`),
+  giveawayTemplates: () => getJson<Array<Partial<GiveawayCreate>>>("/giveaways/templates/rootellect", []),
   providerStatus: () =>
     getJson<ProviderStatus>(
       "/settings/providers",
