@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     public_base_url: AnyHttpUrl | None = None
 
     database_url: str = "postgresql+asyncpg://rootellect:rootellect@localhost:5432/rootellect"
-    redis_url: str = "redis://localhost:6379/0"
+    redis_url: str | None = None
     chroma_host: str = "localhost"
     chroma_port: int = 8001
     chroma_collection: str = "rootellect_knowledge"
@@ -72,6 +72,18 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def redis_enabled(settings: Settings | None = None) -> bool:
+    settings = settings or get_settings()
+    url = (settings.redis_url or "").strip()
+    if not url:
+        return False
+    if settings.environment == "production":
+        host = urlparse(url).hostname or ""
+        if host in {"localhost", "127.0.0.1"}:
+            return False
+    return True
 
 
 def _origin_from_url(url: str | None) -> str | None:

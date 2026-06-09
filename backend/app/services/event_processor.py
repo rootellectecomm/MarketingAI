@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,6 +38,8 @@ from app.services.phone_utils import extract_phone
 from app.services.provider_factory import get_instagram_provider, get_whatsapp_provider
 from app.services.retention_jobs import RetentionJobRunner
 from app.services.wellness_segments import detect_wellness_segment
+
+logger = structlog.get_logger(__name__)
 
 
 class EventProcessor:
@@ -128,6 +131,9 @@ class EventProcessor:
             media_permalink=normalized.payload.get("media_permalink") or normalized.payload.get("permalink"),
         )
         lead = await self._upsert_lead(session, normalized)
+        if normalized.event_type == EventType.whatsapp_message and normalized.actor_id:
+            lead.phone = normalized.actor_id
+            lead.whatsapp_opt_in = True
         phone = extract_phone(text)
         if phone:
             lead.phone = phone
@@ -322,7 +328,9 @@ class EventProcessor:
         return lead
 
 
-async def process_webhook_payload(log_id: str, payload: dict, channel: str) -> None:
+async def process_webhook_payload(log_id: str, payload: dict, channel: str, *, inline: bool = False) -> None:
+    if inline and channel == "whatsapp":
+        logger.info("processing whatsapp inline", log_id=log_id)
     processor = EventProcessor()
     async with get_sessionmaker()() as session:
         provider = await get_whatsapp_provider(session) if channel == "whatsapp" else get_instagram_provider()

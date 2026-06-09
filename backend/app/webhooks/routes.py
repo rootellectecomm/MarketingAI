@@ -99,6 +99,6 @@ async def _receive_webhook(
         await session.commit()
         return {"ok": True, "log_id": log.id, "job_id": job_id, "signature_valid": signature_valid}
 
-    logger.warning("arq_unavailable_processing_inline", log_id=log.id, channel=channel)
-    await process_webhook_payload(log.id, payload, channel)
+    logger.warning("redis_unavailable_processing_inline", log_id=log.id, channel=channel)
+    await process_webhook_payload(log.id, payload, channel, inline=True)
     return {"ok": True, "log_id": log.id, "processed_inline": True, "signature_valid": signature_valid}

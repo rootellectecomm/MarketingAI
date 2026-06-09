@@ -113,6 +113,9 @@ class WhatsAppCloudProvider(MockMetaProvider):
                     )
         return events
 
+    async def send_dm(self, recipient_id: str, message: str) -> ProviderActionResult:
+        return await self.send_whatsapp_text(recipient_id, message)
+
     async def send_whatsapp_text(self, phone: str, message: str) -> ProviderActionResult:
         if not self.access_token or not self.phone_number_id:
             return ProviderActionResult(ok=False, error="Missing WhatsApp credentials")

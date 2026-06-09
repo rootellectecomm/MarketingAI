@@ -2,16 +2,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.rate_limit import InMemoryTokenBucket
 from app.models.entities import ActionAttempt, Comment, Conversation, Lead, Message, SocialEvent
-from app.models.enums import ActionStatus, ModerationAction, SendDecision
+from app.models.enums import ActionStatus, EventType, ModerationAction, SendDecision
 from app.schemas.ai import AIDecision
 from app.services.provider_factory import get_whatsapp_provider
 from app.services.providers.base import SocialProvider
+
+logger = structlog.get_logger(__name__)
 
 
 @dataclass(slots=True)
@@ -73,6 +76,10 @@ class ActionEngine:
             comment.private_replied = attempts[-1].status == ActionStatus.sent
             if comment.private_replied:
                 await self._persist_outbound(session, context, decision.private_dm, "instagram_dm")
+        elif event.event_type == EventType.whatsapp_message and event.actor_id and decision.private_dm:
+            attempts.append(
+                await self._run_whatsapp_reply(session, provider, event, context, decision.private_dm)
+            )
         elif event.actor_id and decision.private_dm:
             attempts.append(await self._run_dm_action(session, provider, event, event.actor_id, decision))
             if attempts[-1].status == ActionStatus.sent:
@@ -103,6 +110,41 @@ class ActionEngine:
                 metadata_json={"automated": True},
             )
         )
+
+    async def _run_whatsapp_reply(
+        self,
+        session: AsyncSession,
+        provider: SocialProvider,
+        event: SocialEvent,
+        context: ActionContext,
+        message: str,
+    ) -> ActionAttempt:
+        idempotency_key = f"{event.provider_event_id}:whatsapp_reply"
+        existing = await session.scalar(select(ActionAttempt).where(ActionAttempt.idempotency_key == idempotency_key))
+        if existing and existing.status == ActionStatus.sent:
+            return existing
+
+        logger.info("sending whatsapp reply", actor_id=event.actor_id, event_id=event.id)
+        attempt = existing or ActionAttempt(
+            social_event_id=event.id,
+            action_type="send_whatsapp_text",
+            provider=event.provider,
+            idempotency_key=idempotency_key,
+            attempts=0,
+        )
+        attempt.social_event_id = event.id
+        attempt.request_json = {"phone": event.actor_id, "message": message}
+        attempt.attempts += 1
+        result = await provider.send_whatsapp_text(event.actor_id or "", message)
+        attempt.status = ActionStatus.sent if result.ok else ActionStatus.failed
+        attempt.response_json = result.response
+        attempt.error_message = result.error
+        if not existing:
+            session.add(attempt)
+        if result.ok:
+            logger.info("reply sent successfully", actor_id=event.actor_id, event_id=event.id)
+            await self._persist_outbound(session, context, message, "whatsapp_message")
+        return attempt
 
     async def _run_whatsapp_followup(
         self,
