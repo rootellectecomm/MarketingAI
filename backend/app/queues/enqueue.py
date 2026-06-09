@@ -4,7 +4,8 @@ import structlog
 from arq import create_pool
 from arq.connections import ArqRedis, RedisSettings
 
-from app.core.config import get_settings, redis_enabled
+from app.core.config import get_settings, redis_enabled, upstash_enabled
+from app.queues.upstash import enqueue_upstash_webhook_job
 
 logger = structlog.get_logger(__name__)
 _pool: ArqRedis | None = None
@@ -28,6 +29,11 @@ async def close_arq_pool() -> None:
 
 
 async def enqueue_webhook_job(log_id: str, payload: dict, channel: str) -> str | None:
+    if channel == "whatsapp" and upstash_enabled():
+        job_id = await enqueue_upstash_webhook_job(log_id, payload, channel)
+        if job_id:
+            return job_id
+
     if not redis_enabled():
         return None
 
@@ -36,5 +42,5 @@ async def enqueue_webhook_job(log_id: str, payload: dict, channel: str) -> str |
         job = await pool.enqueue_job("process_webhook_job", log_id, payload, channel)
         return job.job_id if job else None
     except Exception as exc:
-        logger.warning("queue_enqueue_failed", log_id=log_id, channel=channel, error=str(exc))
+        logger.warning("queue_enqueue_failed", log_id=log_id, channel=channel, backend="arq", error=str(exc))
         return None

@@ -1,4 +1,5 @@
 import json
+import os
 
 import structlog
 from fastapi import APIRouter, Depends, Query, Request
@@ -81,6 +82,16 @@ async def _receive_webhook(
     if channel == "instagram" and payload.get("object") == "whatsapp_business_account":
         channel = "whatsapp"
     provider, channel = _resolve_webhook_target(channel)
+    if channel == "whatsapp":
+        for entry in payload.get("entry", []):
+            for change in entry.get("changes", []):
+                for message in (change.get("value") or {}).get("messages", []):
+                    logger.info(
+                        "whatsapp message received",
+                        message_id=message.get("id"),
+                        sender=message.get("from"),
+                        message_type=message.get("type"),
+                    )
     log = WebhookLog(
         provider=provider,
         event_id=webhook_fingerprint(payload),
@@ -97,6 +108,16 @@ async def _receive_webhook(
     if job_id:
         log.status = EventStatus.queued
         await session.commit()
+        if channel == "whatsapp" and os.getenv("VERCEL"):
+            logger.info("processing whatsapp inline", log_id=log.id, reason="serverless_after_upstash_enqueue")
+            await process_webhook_payload(log.id, payload, channel, inline=True)
+            return {
+                "ok": True,
+                "log_id": log.id,
+                "job_id": job_id,
+                "processed_inline": True,
+                "signature_valid": signature_valid,
+            }
         return {"ok": True, "log_id": log.id, "job_id": job_id, "signature_valid": signature_valid}
 
     logger.warning("redis_unavailable_processing_inline", log_id=log.id, channel=channel)

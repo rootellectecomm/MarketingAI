@@ -3,6 +3,7 @@ from __future__ import annotations
 import httpx
 
 from app.core.config import get_settings
+from app.services.providers.graph_errors import format_graph_api_error
 from app.models.enums import EventType, ProviderType
 from app.schemas.social import NormalizedEvent
 from app.services.providers.base import ProviderActionResult
@@ -138,7 +139,7 @@ class WhatsAppCloudProvider(MockMetaProvider):
                 provider_action_id=str((data.get("messages") or [{}])[0].get("id", "")),
                 status_code=response.status_code,
                 response=data,
-                error=None if response.is_success else str(data),
+                error=None if response.is_success else format_graph_api_error(data, response.status_code),
             )
         except httpx.HTTPError as exc:
             return ProviderActionResult(ok=False, error=str(exc))
@@ -176,7 +177,7 @@ class WhatsAppCloudProvider(MockMetaProvider):
                 provider_action_id=str((data.get("messages") or [{}])[0].get("id", "")),
                 status_code=response.status_code,
                 response=data,
-                error=None if response.is_success else str(data),
+                error=None if response.is_success else format_graph_api_error(data, response.status_code),
             )
         except httpx.HTTPError as exc:
             return ProviderActionResult(ok=False, error=str(exc))

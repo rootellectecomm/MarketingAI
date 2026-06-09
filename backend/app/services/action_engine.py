@@ -144,6 +144,15 @@ class ActionEngine:
         if result.ok:
             logger.info("reply sent successfully", actor_id=event.actor_id, event_id=event.id)
             await self._persist_outbound(session, context, message, "whatsapp_message")
+        else:
+            logger.error(
+                "whatsapp send error",
+                actor_id=event.actor_id,
+                event_id=event.id,
+                error=result.error,
+                graph_response=result.response,
+                status_code=result.status_code,
+            )
         return attempt
 
     async def _run_whatsapp_followup(
@@ -186,6 +195,15 @@ class ActionEngine:
         attempt.response_json = result.response
         attempt.error_message = result.error
         session.add(attempt)
+        if not result.ok:
+            logger.error(
+                "whatsapp send error",
+                phone=lead.phone,
+                event_id=event.id,
+                error=result.error,
+                graph_response=result.response,
+                status_code=result.status_code,
+            )
         return attempt
 
     async def _run_comment_action(

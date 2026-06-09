@@ -20,6 +20,8 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://rootellect:rootellect@localhost:5432/rootellect"
     redis_url: str | None = None
+    upstash_redis_rest_url: str | None = None
+    upstash_redis_rest_token: str | None = None
     chroma_host: str = "localhost"
     chroma_port: int = 8001
     chroma_collection: str = "rootellect_knowledge"
@@ -84,6 +86,13 @@ def redis_enabled(settings: Settings | None = None) -> bool:
         if host in {"localhost", "127.0.0.1"}:
             return False
     return True
+
+
+def upstash_enabled(settings: Settings | None = None) -> bool:
+    settings = settings or get_settings()
+    url = (settings.upstash_redis_rest_url or "").strip()
+    token = (settings.upstash_redis_rest_token or "").strip()
+    return bool(url and token)
 
 
 def _origin_from_url(url: str | None) -> str | None:

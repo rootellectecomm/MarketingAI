@@ -171,6 +171,15 @@ class EventProcessor:
 
         decision = self._apply_campaign_gates(decision, matched_campaigns)
 
+        if normalized.event_type == EventType.whatsapp_message:
+            logger.info(
+                "ai response generated",
+                event_id=event.id,
+                confidence=decision.confidence,
+                send_decision=decision.send_decision.value,
+                reply_preview=(decision.private_dm or "")[:160],
+            )
+
         if moderation.action != ModerationAction.allow:
             decision.moderation_action = moderation.action
             decision.safety_flags = sorted(set(decision.safety_flags + moderation.flags))
