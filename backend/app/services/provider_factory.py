@@ -48,4 +48,6 @@ async def get_whatsapp_provider(session: AsyncSession | None = None):
 
     if settings.whatsapp_access_token and settings.whatsapp_phone_number_id:
         return WhatsAppCloudProvider(access_token=settings.whatsapp_access_token, phone_number_id=settings.whatsapp_phone_number_id)
-    return MockMetaProvider()
+    if settings.provider_mode == "mock":
+        return MockMetaProvider()
+    return WhatsAppCloudProvider()

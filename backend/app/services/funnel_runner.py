@@ -107,7 +107,7 @@ class FunnelRunner:
                     continue
 
                 if step.channel == "whatsapp_message" and lead.phone:
-                    provider = get_whatsapp_provider()
+                    provider = await get_whatsapp_provider(session)
                     settings = get_settings()
                     if lead.whatsapp_opt_in:
                         await provider.send_whatsapp_text(lead.phone, step.message_template)

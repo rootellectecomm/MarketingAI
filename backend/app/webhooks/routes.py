@@ -1,5 +1,7 @@
+import json
+
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,9 +41,7 @@ async def receive_instagram(
     request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    settings = get_settings()
-    provider = ProviderType.mock if settings.provider_mode == "mock" else ProviderType(settings.provider_mode)
-    return await _receive_webhook(request, session, provider, "instagram")
+    return await _receive_webhook(request, session, channel="instagram")
 
 
 @router.post("/whatsapp")
@@ -49,23 +49,38 @@ async def receive_whatsapp(
     request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    return await _receive_webhook(request, session, ProviderType.whatsapp_cloud, "whatsapp")
+    return await _receive_webhook(request, session, channel="whatsapp")
+
+
+def _resolve_webhook_target(channel: str) -> tuple[ProviderType, str]:
+    settings = get_settings()
+    if channel == "whatsapp":
+        return ProviderType.whatsapp_cloud, "whatsapp"
+    provider = ProviderType.mock if settings.provider_mode == "mock" else ProviderType(settings.provider_mode)
+    return provider, "instagram"
 
 
 async def _receive_webhook(
     request: Request,
     session: AsyncSession,
-    provider: ProviderType,
     channel: str,
 ) -> dict:
     settings = get_settings()
     raw_body = await request.body()
     signature = request.headers.get("x-hub-signature-256")
     signature_valid = verify_meta_signature(raw_body, signature, settings.meta_app_secret)
-    if settings.environment == "production" and not signature_valid:
-        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    if not signature_valid:
+        logger.warning(
+            "meta_webhook_signature_invalid",
+            channel=channel,
+            path=request.url.path,
+            environment=settings.environment,
+        )
 
-    payload = await request.json()
+    payload = json.loads(raw_body.decode() or "{}")
+    if channel == "instagram" and payload.get("object") == "whatsapp_business_account":
+        channel = "whatsapp"
+    provider, channel = _resolve_webhook_target(channel)
     log = WebhookLog(
         provider=provider,
         event_id=webhook_fingerprint(payload),

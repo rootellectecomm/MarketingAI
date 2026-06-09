@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import get_current_user
 from app.core.config import get_settings
 from app.database.session import get_session
-from app.models.entities import InstagramAccount, ProviderCredential
+from app.models.entities import InstagramAccount, ProviderCredential, WhatsAppAccount
 from app.models.enums import ProviderType
 from app.schemas.social import ProviderStatus
 
@@ -34,6 +34,18 @@ async def provider_status(session: AsyncSession = Depends(get_session)) -> Provi
             )
         ).all()
     )
+    whatsapp_account = await session.scalar(
+        select(WhatsAppAccount)
+        .join(ProviderCredential, WhatsAppAccount.provider_credential_id == ProviderCredential.id)
+        .where(
+            WhatsAppAccount.is_active.is_(True),
+            ProviderCredential.provider_type == ProviderType.whatsapp_cloud,
+            ProviderCredential.is_active.is_(True),
+            ProviderCredential.encrypted_access_token.is_not(None),
+        )
+        .order_by(WhatsAppAccount.updated_at.desc())
+        .limit(1)
+    )
 
     missing_meta_env = [
         key
@@ -61,12 +73,18 @@ async def provider_status(session: AsyncSession = Depends(get_session)) -> Provi
             "Make sure the Instagram account is Professional/Creator and linked to the selected Facebook Page, then reconnect. "
             "If it was linked after connecting, click Sync comments once after this deploy so the backend can repair the saved account."
         )
+    whatsapp_ready = bool(whatsapp_account or (settings.whatsapp_access_token and settings.whatsapp_phone_number_id))
+    if not whatsapp_ready:
+        setup_warnings.append(
+            "WhatsApp is not connected. Register a WhatsApp Business Platform phone number by OTP in Meta, "
+            "then save WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN or connect an active WhatsApp Cloud credential."
+        )
 
     return ProviderStatus(
         provider_mode=settings.provider_mode,
         facebook_ready=len(facebook_credentials) > 0,
         instagram_ready=len(instagram_accounts) > 0,
-        whatsapp_ready=bool(settings.whatsapp_access_token and settings.whatsapp_phone_number_id),
+        whatsapp_ready=whatsapp_ready,
         openai_ready=bool(settings.openai_api_key),
         chroma_collection=settings.chroma_collection,
         meta_env_ready=not missing_meta_env,

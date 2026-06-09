@@ -58,7 +58,7 @@ class RetentionJobRunner:
                     continue
 
                 if lead.phone and lead.whatsapp_opt_in:
-                    provider = get_whatsapp_provider()
+                    provider = await get_whatsapp_provider(session)
                     result = await provider.send_whatsapp_text(lead.phone, RECOVERY_MESSAGE)
                     if result.ok:
                         session.add(
@@ -83,7 +83,7 @@ class RetentionJobRunner:
             ).scalars().all()
 
             settings = get_settings()
-            provider = get_whatsapp_provider()
+            provider = await get_whatsapp_provider(session)
 
             for order in orders[:100]:
                 if not order.customer_phone or not order.lead_id:

@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy import text
@@ -9,15 +9,14 @@ from app.api.dependencies import get_current_user
 from app.api.v1.router import api_router
 from app.core.config import get_cors_origin_regex, get_cors_origins, get_settings
 from app.core.logging import configure_logging
-from app.database.session import dispose_engine, get_engine
+from app.database.session import dispose_engine, get_engine, get_session
 from app.middleware.cors import VercelCorsMiddleware
 from app.middleware.security import RateLimitMiddleware, SecurityHeadersMiddleware
 from app.queues.enqueue import close_arq_pool
 from app.realtime import manager
-from app.webhooks.routes import router as webhook_router
-from fastapi import Query
-
+from app.webhooks.routes import _receive_webhook, router as webhook_router
 from app.webhooks.verify import verify_meta_hub_challenge
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @asynccontextmanager
@@ -62,6 +61,15 @@ async def verify_webhook(
 ) -> PlainTextResponse:
     """Meta subscription verify — returns hub.challenge as plain text (not JSON)."""
     return verify_meta_hub_challenge(hub_mode, hub_verify_token, hub_challenge)
+
+
+@app.post("/webhook", tags=["meta webhooks"])
+async def receive_webhook(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Legacy Meta webhook path — accepts Instagram or WhatsApp payloads without JWT auth."""
+    return await _receive_webhook(request, session, channel="instagram")
 
 
 @app.exception_handler(Exception)

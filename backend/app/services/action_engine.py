@@ -119,7 +119,7 @@ class ActionEngine:
         if existing:
             return existing
 
-        wa_provider = get_whatsapp_provider()
+        wa_provider = await get_whatsapp_provider(session)
         attempt = ActionAttempt(
             social_event_id=event.id,
             action_type="send_whatsapp_text",

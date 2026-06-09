@@ -15,7 +15,7 @@ export async function verifyMetaWebhook(req: NextRequest) {
   return new NextResponse("Forbidden", { status: 403 });
 }
 
-export async function receiveMetaWebhook(req: NextRequest) {
+export async function receiveMetaWebhook(req: NextRequest, backendWebhookUrl?: string) {
   const rawBody = await req.text();
   let body: unknown = rawBody;
   try {
@@ -23,17 +23,18 @@ export async function receiveMetaWebhook(req: NextRequest) {
   } catch {
     body = rawBody;
   }
-  const backendWebhookUrl =
+  const targetUrl =
+    backendWebhookUrl ??
     process.env.BACKEND_WEBHOOK_URL ??
     process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/api\/v1\/?$/, "/webhooks/meta/instagram");
 
   console.log("Webhook Event:", typeof body === "string" ? body : JSON.stringify(body));
 
-  if (backendWebhookUrl) {
+  if (targetUrl) {
     try {
       const signature = req.headers.get("x-hub-signature-256");
       const contentType = req.headers.get("content-type") ?? "application/json";
-      await fetch(backendWebhookUrl, {
+      await fetch(targetUrl, {
         method: "POST",
         headers: {
           "content-type": contentType,
@@ -47,5 +48,5 @@ export async function receiveMetaWebhook(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ success: true, forwarded: Boolean(backendWebhookUrl) }, { status: 200 });
+  return NextResponse.json({ success: true, forwarded: Boolean(targetUrl) }, { status: 200 });
 }

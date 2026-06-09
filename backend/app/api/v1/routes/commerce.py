@@ -88,7 +88,7 @@ async def shopify_webhook(request: Request, session: AsyncSession = Depends(get_
                     "Just checking if you needed help choosing. "
                     "Sometimes wellness decisions take time — happy to guide if you're confused."
                 )
-                provider = get_whatsapp_provider()
+                provider = await get_whatsapp_provider(session)
                 lead = lead or await session.scalar(select(Lead).where(Lead.phone == phone))
                 if lead and lead.whatsapp_opt_in:
                     result = await provider.send_whatsapp_text(phone, f"{message}\n{checkout_url}")

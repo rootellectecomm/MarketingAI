@@ -221,7 +221,7 @@ class EventProcessor:
 
         page_access_token = await get_active_page_access_token(session)
         provider = (
-            get_whatsapp_provider()
+            await get_whatsapp_provider(session)
             if normalized.event_type == EventType.whatsapp_message
             else get_instagram_provider(access_token=page_access_token)
         )
@@ -324,8 +324,8 @@ class EventProcessor:
 
 async def process_webhook_payload(log_id: str, payload: dict, channel: str) -> None:
     processor = EventProcessor()
-    provider = get_whatsapp_provider() if channel == "whatsapp" else get_instagram_provider()
     async with get_sessionmaker()() as session:
+        provider = await get_whatsapp_provider(session) if channel == "whatsapp" else get_instagram_provider()
         log = await session.get(WebhookLog, log_id)
         try:
             events = await provider.normalize_event(payload)
