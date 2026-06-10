@@ -142,7 +142,12 @@ class ActionEngine:
         if not existing:
             session.add(attempt)
         if result.ok:
-            logger.info("reply sent successfully", actor_id=event.actor_id, event_id=event.id)
+            logger.info(
+                "whatsapp send success",
+                actor_id=event.actor_id,
+                event_id=event.id,
+                provider_action_id=result.provider_action_id,
+            )
             await self._persist_outbound(session, context, message, "whatsapp_message")
         else:
             logger.error(
@@ -150,7 +155,7 @@ class ActionEngine:
                 actor_id=event.actor_id,
                 event_id=event.id,
                 error=result.error,
-                graph_response=result.response,
+                graph_api_response_body=result.response,
                 status_code=result.status_code,
             )
         return attempt
@@ -195,13 +200,15 @@ class ActionEngine:
         attempt.response_json = result.response
         attempt.error_message = result.error
         session.add(attempt)
-        if not result.ok:
+        if result.ok:
+            logger.info("whatsapp send success", phone=lead.phone, event_id=event.id, provider_action_id=result.provider_action_id)
+        else:
             logger.error(
                 "whatsapp send error",
                 phone=lead.phone,
                 event_id=event.id,
                 error=result.error,
-                graph_response=result.response,
+                graph_api_response_body=result.response,
                 status_code=result.status_code,
             )
         return attempt

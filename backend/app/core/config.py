@@ -77,15 +77,17 @@ def get_settings() -> Settings:
 
 
 def redis_enabled(settings: Settings | None = None) -> bool:
+    """Local ARQ Redis is development-only. Production uses Upstash REST instead."""
     settings = settings or get_settings()
+    if settings.environment != "local":
+        return False
     url = (settings.redis_url or "").strip()
     if not url:
         return False
-    if settings.environment == "production":
-        host = urlparse(url).hostname or ""
-        if host in {"localhost", "127.0.0.1"}:
-            return False
-    return True
+    host = urlparse(url).hostname or ""
+    if host in {"localhost", "127.0.0.1", "redis"}:
+        return True
+    return bool(url)
 
 
 def upstash_enabled(settings: Settings | None = None) -> bool:

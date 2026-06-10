@@ -8,6 +8,7 @@ from sqlalchemy import text
 from app.api.dependencies import get_current_user
 from app.api.v1.router import api_router
 from app.core.config import get_cors_origin_regex, get_cors_origins, get_settings, redis_enabled, upstash_enabled
+from app.queues.provider import get_queue_provider
 from app.core.logging import configure_logging
 from app.database.session import dispose_engine, get_engine, get_session
 from app.middleware.cors import VercelCorsMiddleware
@@ -102,6 +103,7 @@ async def debug_config() -> dict:
         "redis_configured": bool(settings.redis_url),
         "redis_enabled": redis_enabled(settings),
         "upstash_enabled": upstash_enabled(settings),
+        "queue_provider": get_queue_provider(),
         "openai_configured": bool(settings.openai_api_key),
         "meta_app_id_configured": bool(settings.meta_app_id),
         "meta_app_secret_configured": bool(settings.meta_app_secret),

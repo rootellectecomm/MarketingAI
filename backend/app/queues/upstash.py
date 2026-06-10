@@ -12,6 +12,7 @@ from app.services.event_processor import process_webhook_payload
 
 logger = structlog.get_logger(__name__)
 QUEUE_KEY = "rootellect:webhook:jobs"
+_initialized = False
 
 
 @lru_cache
@@ -21,11 +22,18 @@ def get_upstash_client():
         return None
     from upstash_redis import Redis
 
+    global _initialized
+    if not _initialized:
+        logger.info("upstash redis initialized", rest_url=settings.upstash_redis_rest_url)
+        _initialized = True
+
     return Redis(url=settings.upstash_redis_rest_url, token=settings.upstash_redis_rest_token)
 
 
 def clear_upstash_client_cache() -> None:
+    global _initialized
     get_upstash_client.cache_clear()
+    _initialized = False
 
 
 async def enqueue_upstash_webhook_job(log_id: str, payload: dict, channel: str) -> str | None:
@@ -37,10 +45,15 @@ async def enqueue_upstash_webhook_job(log_id: str, payload: dict, channel: str) 
     job = json.dumps({"job_id": job_id, "log_id": log_id, "payload": payload, "channel": channel})
     try:
         await asyncio.to_thread(client.rpush, QUEUE_KEY, job)
-        logger.info("upstash_webhook_enqueued", job_id=job_id, log_id=log_id, channel=channel)
         return job_id
     except Exception as exc:
-        logger.warning("queue_enqueue_failed", log_id=log_id, channel=channel, backend="upstash", error=str(exc))
+        logger.warning(
+            "queue enqueue failed",
+            log_id=log_id,
+            channel=channel,
+            provider="upstash",
+            error=str(exc),
+        )
         return None
 
 

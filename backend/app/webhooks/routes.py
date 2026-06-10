@@ -61,6 +61,19 @@ def _resolve_webhook_target(channel: str) -> tuple[ProviderType, str]:
     return provider, "instagram"
 
 
+async def _process_webhook_inline(log_id: str, payload: dict, channel: str, *, reason: str) -> None:
+    logger.info("processing inline", log_id=log_id, channel=channel, reason=reason)
+    try:
+        await process_webhook_payload(log_id, payload, channel, inline=True)
+    except Exception as exc:
+        logger.exception(
+            "inline processing failed",
+            log_id=log_id,
+            channel=channel,
+            error=str(exc),
+        )
+
+
 async def _receive_webhook(
     request: Request,
     session: AsyncSession,
@@ -105,21 +118,24 @@ async def _receive_webhook(
     await session.refresh(log)
 
     job_id = await enqueue_webhook_job(log.id, payload, channel)
+    processed_inline = False
+    inline_reason = "queue_unavailable"
+
     if job_id:
         log.status = EventStatus.queued
         await session.commit()
-        if channel == "whatsapp" and os.getenv("VERCEL"):
-            logger.info("processing whatsapp inline", log_id=log.id, reason="serverless_after_upstash_enqueue")
-            await process_webhook_payload(log.id, payload, channel, inline=True)
-            return {
-                "ok": True,
-                "log_id": log.id,
-                "job_id": job_id,
-                "processed_inline": True,
-                "signature_valid": signature_valid,
-            }
-        return {"ok": True, "log_id": log.id, "job_id": job_id, "signature_valid": signature_valid}
+        if os.getenv("VERCEL"):
+            inline_reason = "serverless_after_enqueue"
+            await _process_webhook_inline(log.id, payload, channel, reason=inline_reason)
+            processed_inline = True
+    else:
+        await _process_webhook_inline(log.id, payload, channel, reason=inline_reason)
+        processed_inline = True
 
-    logger.warning("redis_unavailable_processing_inline", log_id=log.id, channel=channel)
-    await process_webhook_payload(log.id, payload, channel, inline=True)
-    return {"ok": True, "log_id": log.id, "processed_inline": True, "signature_valid": signature_valid}
+    return {
+        "ok": True,
+        "log_id": log.id,
+        "job_id": job_id,
+        "processed_inline": processed_inline,
+        "signature_valid": signature_valid,
+    }

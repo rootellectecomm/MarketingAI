@@ -2,6 +2,7 @@ import json
 import pytest
 
 from app.core.config import get_settings, upstash_enabled
+from app.queues.provider import reset_queue_provider_log
 from app.queues.upstash import clear_upstash_client_cache, enqueue_upstash_webhook_job
 
 
@@ -32,6 +33,7 @@ async def test_upstash_enqueue_uses_rest_client(monkeypatch):
 
     get_settings.cache_clear()
     clear_upstash_client_cache()
+    reset_queue_provider_log()
 
 
 def test_upstash_enabled_requires_url_and_token(monkeypatch):

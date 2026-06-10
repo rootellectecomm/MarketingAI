@@ -338,8 +338,6 @@ class EventProcessor:
 
 
 async def process_webhook_payload(log_id: str, payload: dict, channel: str, *, inline: bool = False) -> None:
-    if inline and channel == "whatsapp":
-        logger.info("processing whatsapp inline", log_id=log_id)
     processor = EventProcessor()
     async with get_sessionmaker()() as session:
         provider = await get_whatsapp_provider(session) if channel == "whatsapp" else get_instagram_provider()

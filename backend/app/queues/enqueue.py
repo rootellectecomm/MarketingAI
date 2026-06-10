@@ -4,7 +4,8 @@ import structlog
 from arq import create_pool
 from arq.connections import ArqRedis, RedisSettings
 
-from app.core.config import get_settings, redis_enabled, upstash_enabled
+from app.core.config import get_settings, redis_enabled
+from app.queues.provider import log_queue_provider_selected
 from app.queues.upstash import enqueue_upstash_webhook_job
 
 logger = structlog.get_logger(__name__)
@@ -15,7 +16,7 @@ async def get_arq_pool() -> ArqRedis:
     global _pool
     settings = get_settings()
     if not redis_enabled(settings):
-        raise RuntimeError("Redis is not configured")
+        raise RuntimeError("Local Redis is not configured for development")
     if _pool is None:
         _pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
     return _pool
@@ -29,18 +30,35 @@ async def close_arq_pool() -> None:
 
 
 async def enqueue_webhook_job(log_id: str, payload: dict, channel: str) -> str | None:
-    if channel == "whatsapp" and upstash_enabled():
+    provider = log_queue_provider_selected()
+
+    if provider == "upstash":
         job_id = await enqueue_upstash_webhook_job(log_id, payload, channel)
         if job_id:
+            logger.info("queue enqueue success", log_id=log_id, channel=channel, provider="upstash", job_id=job_id)
             return job_id
-
-    if not redis_enabled():
+        logger.warning("queue enqueue failed", log_id=log_id, channel=channel, provider="upstash")
         return None
 
-    try:
-        pool = await get_arq_pool()
-        job = await pool.enqueue_job("process_webhook_job", log_id, payload, channel)
-        return job.job_id if job else None
-    except Exception as exc:
-        logger.warning("queue_enqueue_failed", log_id=log_id, channel=channel, backend="arq", error=str(exc))
-        return None
+    if provider == "local_redis":
+        try:
+            pool = await get_arq_pool()
+            job = await pool.enqueue_job("process_webhook_job", log_id, payload, channel)
+            job_id = job.job_id if job else None
+            if job_id:
+                logger.info("queue enqueue success", log_id=log_id, channel=channel, provider="local_redis", job_id=job_id)
+                return job_id
+            logger.warning("queue enqueue failed", log_id=log_id, channel=channel, provider="local_redis")
+            return None
+        except Exception as exc:
+            logger.warning(
+                "queue enqueue failed",
+                log_id=log_id,
+                channel=channel,
+                provider="local_redis",
+                error=str(exc),
+            )
+            return None
+
+    logger.info("queue enqueue skipped", log_id=log_id, channel=channel, provider="inline")
+    return None
