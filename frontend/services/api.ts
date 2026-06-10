@@ -3,6 +3,8 @@ import type {
   BootstrapResponse,
   Campaign,
   CampaignCreate,
+  CampaignEvent,
+  CampaignTestResult,
   CommentItem,
   ContentGenerateResult,
   ConversationItem,
@@ -200,6 +202,9 @@ export const api = {
   campaigns: () => getJson<Campaign[]>("/campaigns", USE_MOCK_DATA ? campaigns : []),
   createCampaign: (payload: CampaignCreate) => postJson<Campaign>("/campaigns", payload),
   updateCampaign: (id: string, payload: Partial<CampaignCreate>) => patchJson<Campaign>(`/campaigns/${id}`, payload),
+  campaignEvents: (id: string) => getJson<CampaignEvent[]>(`/campaigns/${id}/events`, []),
+  testCampaign: (payload: { text: string; platform?: string; post_id?: string | null }) =>
+    postJson<CampaignTestResult>("/campaigns/test", payload),
   conversations: () => getJson<ConversationItem[]>("/conversations", []),
   conversationMessages: (id: string) => getJson<ConversationMessage[]>(`/conversations/${id}/messages`, []),
   knowledge: () => getJson<KnowledgeDocument[]>("/knowledge", []),

@@ -29,6 +29,7 @@ from app.moderation.engine import ModerationEngine
 from app.schemas.ai import AIRequestContext, ThreadMessage
 from app.schemas.social import NormalizedEvent
 from app.services.action_engine import ActionContext, ActionEngine
+from app.services.campaign_conversion import CampaignConversionService
 from app.services.campaign_matcher import CampaignMatcher
 from app.services.giveaway_processor import GiveawayProcessor
 from app.services.lead_scoring import LeadScoringService
@@ -50,6 +51,7 @@ class EventProcessor:
         self.leads = LeadScoringService()
         self.actions = ActionEngine()
         self.campaigns = CampaignMatcher()
+        self.campaign_conversion = CampaignConversionService()
         self.giveaways = GiveawayProcessor()
 
     async def process(
@@ -124,11 +126,13 @@ class EventProcessor:
                 )
             )
 
+        platform = CampaignConversionService.platform_for_event(event)
         matched_campaigns = await self.campaigns.match_active(
             session,
             text,
             media_id=normalized.media_id,
             media_permalink=normalized.payload.get("media_permalink") or normalized.payload.get("permalink"),
+            platform=platform,
         )
         lead = await self._upsert_lead(session, normalized)
         if normalized.event_type == EventType.whatsapp_message and normalized.actor_id:
@@ -146,6 +150,22 @@ class EventProcessor:
         if await self.giveaways.handle_comment(session, event, comment, lead):
             event.status = EventStatus.processed
             return
+
+        if comment and matched_campaigns:
+            page_access_token = await get_active_page_access_token(session)
+            provider = get_instagram_provider(access_token=page_access_token)
+            handled = await self.campaign_conversion.handle_comment(
+                session,
+                provider,
+                event,
+                comment,
+                matched_campaigns[0],
+                conversation,
+                lead,
+            )
+            if handled:
+                event.status = EventStatus.processed
+                return
 
         thread_history = await self._load_thread_history(session, conversation.id)
         moderation = self.moderation.evaluate(text)
@@ -171,14 +191,17 @@ class EventProcessor:
 
         decision = self._apply_campaign_gates(decision, matched_campaigns)
 
-        if normalized.event_type == EventType.whatsapp_message:
-            logger.info(
-                "ai response generated",
-                event_id=event.id,
-                confidence=decision.confidence,
-                send_decision=decision.send_decision.value,
-                reply_preview=(decision.private_dm or "")[:160],
-            )
+        logger.info(
+            "ai response generated",
+            event_id=event.id,
+            selected_product=decision.selected_product,
+            user_intent=decision.user_intent,
+            reply_channel=decision.reply_channel,
+            used_knowledge_source=decision.used_knowledge_source,
+            confidence=decision.confidence,
+            send_decision=decision.send_decision.value,
+            reply_preview=(decision.private_dm or decision.public_reply or "")[:160],
+        )
 
         if moderation.action != ModerationAction.allow:
             decision.moderation_action = moderation.action
@@ -190,6 +213,8 @@ class EventProcessor:
             else:
                 decision.send_decision = SendDecision.escalate
             decision.escalation_reason = moderation.notes or decision.escalation_reason
+
+        await self._apply_campaign_dm_followup(session, event, lead, decision, text)
 
         session.add(
             ModerationLog(
@@ -206,7 +231,13 @@ class EventProcessor:
                 social_event_id=event.id,
                 model=self.ai.settings.openai_model,
                 prompt_version=PROMPT_VERSION,
-                input_json=ai_input,
+                input_json={
+                    **ai_input,
+                    "selected_product": decision.selected_product,
+                    "user_intent": decision.user_intent,
+                    "reply_channel": decision.reply_channel,
+                    "used_knowledge_source": decision.used_knowledge_source,
+                },
                 output_json=decision.model_dump(mode="json"),
                 latency_ms=latency_ms,
                 confidence=decision.confidence,
@@ -231,6 +262,13 @@ class EventProcessor:
         )
         score_delta = self.leads.score_delta(decision, int(repeat_engagements or 0))
         lead.score = max(0, min(100, lead.score + score_delta))
+        lead.intent_level = "high" if lead.score >= 6 else "medium" if lead.score >= 4 else "low"
+        if lead.score >= 6:
+            lead.lifecycle_stage = "hot"
+            lead.conversion_stage = "hot_lead"
+        elif lead.score >= 4 and lead.lifecycle_stage == "new":
+            lead.lifecycle_stage = "qualified"
+            lead.conversion_stage = "qualified"
         session.add(LeadScore(lead_id=lead.id, score_delta=score_delta, reason=decision.intent))
         await RetentionJobRunner().enroll_new_leads(session, lead)
 
@@ -262,6 +300,10 @@ class EventProcessor:
                 entity_id=event.id,
                 properties={
                     "intent": decision.intent,
+                    "user_intent": decision.user_intent,
+                    "selected_product": decision.selected_product,
+                    "reply_channel": decision.reply_channel,
+                    "used_knowledge_source": decision.used_knowledge_source,
                     "sentiment": decision.sentiment,
                     "send_decision": decision.send_decision,
                     "campaigns": [c.name for c in matched_campaigns],
@@ -269,6 +311,82 @@ class EventProcessor:
             )
         )
         event.status = EventStatus.processed
+
+    async def _apply_campaign_dm_followup(
+        self,
+        session: AsyncSession,
+        event: SocialEvent,
+        lead: Lead,
+        decision,
+        text: str,
+    ) -> None:
+        if event.event_type not in {EventType.instagram_dm, EventType.whatsapp_message}:
+            return
+        campaign = await session.get(Campaign, lead.source_campaign_id) if lead.source_campaign_id else None
+        if not campaign or not campaign.ai_followup_enabled:
+            return
+
+        delta = CampaignConversionService.score_text(text)
+        projected_score = max(0, min(100, lead.score + delta))
+        lead.last_message = text
+        lead.product_interest = lead.product_interest or campaign.product_name
+        lead.source_campaign_id = campaign.id
+        decision.lead_score_delta += max(delta, 0)
+        decision.user_intent = decision.user_intent or decision.intent
+
+        session.add(
+            AnalyticsEvent(
+                event_name="ai_intent_detected",
+                entity_type="campaign",
+                entity_id=campaign.id,
+                properties={
+                    "social_event_id": event.id,
+                    "intent": decision.user_intent,
+                    "user_id": lead.external_user_id,
+                },
+            )
+        )
+        session.add(
+            AnalyticsEvent(
+                event_name="lead_score_updated",
+                entity_type="lead",
+                entity_id=lead.id,
+                value=delta,
+                properties={"campaign_id": campaign.id, "projected_score": projected_score},
+            )
+        )
+
+        if projected_score >= 4 and decision.private_dm:
+            cta_parts = []
+            product_link = campaign.followup_link or campaign.product_link
+            if product_link and product_link not in decision.private_dm:
+                cta_parts.append(product_link)
+            whatsapp_link = campaign.whatsapp_link or self.ai.settings.rootellect_whatsapp_link
+            if whatsapp_link and whatsapp_link not in decision.private_dm:
+                cta_parts.append(f"If you want quicker help, message us on WhatsApp here: {whatsapp_link}")
+            if cta_parts:
+                decision.private_dm = self._short_reply_with_cta(decision.private_dm, cta_parts)
+                session.add(
+                    AnalyticsEvent(
+                        event_name="whatsapp_cta_sent",
+                        entity_type="campaign",
+                        entity_id=campaign.id,
+                        properties={"social_event_id": event.id, "user_id": lead.external_user_id},
+                    )
+                )
+
+        if projected_score >= 6:
+            lead.intent_level = "high"
+            lead.lifecycle_stage = "hot"
+            lead.conversion_stage = "hot_lead"
+
+    @staticmethod
+    def _short_reply_with_cta(reply: str, cta_parts: list[str]) -> str:
+        words = reply.split()
+        base = " ".join(words[:52])
+        suffix = " ".join(cta_parts)
+        combined = f"{base} {suffix}".strip()
+        return " ".join(combined.split()[:70])
 
     def _apply_campaign_gates(self, decision, matched_campaigns: list[Campaign]):
         if matched_campaigns and not self.campaigns.allows_public_reply(matched_campaigns):
@@ -324,11 +442,15 @@ class EventProcessor:
         )
         if lead:
             lead.username = normalized.actor_username or lead.username
+            lead.platform = source_channel
+            lead.last_message = normalized.text or lead.last_message
             return lead
         lead = Lead(
             external_user_id=external_user_id,
             username=normalized.actor_username,
             source_channel=source_channel,
+            platform=source_channel,
+            last_message=normalized.text,
             score=0,
             tags=[source_channel],
         )

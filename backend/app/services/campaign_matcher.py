@@ -25,6 +25,7 @@ class CampaignMatcher:
         text: str,
         media_id: str | None = None,
         media_permalink: str | None = None,
+        platform: str = "instagram",
     ) -> list[Campaign]:
         normalized = normalize_comment_text(text).lower()
         if not normalized:
@@ -34,17 +35,39 @@ class CampaignMatcher:
         campaigns = list(result.scalars().all())
         matched: list[Campaign] = []
         for campaign in campaigns:
-            triggers = [t.lower().strip() for t in (campaign.keyword_triggers or []) if t.strip()]
-            keyword_match = not triggers or any(trigger in normalized for trigger in triggers)
-            if keyword_match and self._matches_media_target(campaign, media_id, media_permalink):
+            keyword_match = bool(self.matched_keyword(campaign, normalized)) or not campaign.keyword_triggers
+            if (
+                keyword_match
+                and self._matches_platform(campaign, platform)
+                and self._matches_media_target(campaign, media_id, media_permalink)
+            ):
                 matched.append(campaign)
         return matched
 
     @staticmethod
+    def matched_keyword(campaign: Campaign, text: str) -> str | None:
+        normalized = normalize_comment_text(text).lower()
+        triggers = [t.lower().strip() for t in (campaign.keyword_triggers or []) if t.strip()]
+        for trigger in triggers:
+            if trigger in normalized:
+                return trigger
+        return None
+
+    @staticmethod
+    def _matches_platform(campaign: Campaign, platform: str) -> bool:
+        campaign_platform = (campaign.platform or "both").lower()
+        platform = platform.lower()
+        return campaign_platform == "both" or campaign_platform == platform
+
+    @staticmethod
     def _matches_media_target(campaign: Campaign, media_id: str | None, media_permalink: str | None) -> bool:
         metadata = campaign.metadata_json or {}
+        post_id = str(campaign.post_id or "").strip()
         target_ids = {str(item) for item in metadata.get("target_media_ids", []) if item}
         target_shortcodes = {str(item) for item in metadata.get("target_media_shortcodes", []) if item}
+
+        if post_id:
+            target_ids.add(post_id)
 
         if not target_ids and not target_shortcodes:
             return True

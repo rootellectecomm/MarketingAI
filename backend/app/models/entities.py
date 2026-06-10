@@ -160,9 +160,15 @@ class Lead(Base, IdMixin, TimestampMixin):
     external_user_id: Mapped[str] = mapped_column(String(255), index=True)
     username: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     source_channel: Mapped[str] = mapped_column(String(64), default="instagram")
+    platform: Mapped[str] = mapped_column(String(64), default="instagram", index=True)
     lifecycle_stage: Mapped[str] = mapped_column(String(64), default="new")
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    product_interest: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    intent_level: Mapped[str] = mapped_column(String(32), default="low", index=True)
+    last_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_campaign_id: Mapped[str | None] = mapped_column(ForeignKey("campaigns.id"), nullable=True, index=True)
+    conversion_stage: Mapped[str] = mapped_column(String(64), default="new", index=True)
     whatsapp_opt_in: Mapped[bool] = mapped_column(Boolean, default=False)
     score: Mapped[int] = mapped_column(Integer, default=0)
     tags: Mapped[list[str]] = mapped_column(JSON, default=list)
@@ -185,12 +191,45 @@ class Campaign(Base, IdMixin, TimestampMixin):
 
     name: Mapped[str] = mapped_column(String(255), index=True)
     status: Mapped[str] = mapped_column(String(64), default="draft", index=True)
+    platform: Mapped[str] = mapped_column(String(32), default="both", index=True)
+    post_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    product_key: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    product_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    product_link: Mapped[str | None] = mapped_column(Text, nullable=True)
+    followup_link: Mapped[str | None] = mapped_column(Text, nullable=True)
+    whatsapp_link: Mapped[str | None] = mapped_column(Text, nullable=True)
     product_focus: Mapped[list[str]] = mapped_column(JSON, default=list)
     keyword_triggers: Mapped[list[str]] = mapped_column(JSON, default=list)
+    public_reply_template: Mapped[str] = mapped_column(Text, default="Sent you the details in DM.")
+    dm_template: Mapped[str] = mapped_column(Text, default="")
+    ai_prompt_override: Mapped[str | None] = mapped_column(Text, nullable=True)
     public_reply_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     dm_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     whatsapp_followup_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    ai_followup_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class CampaignEvent(Base, IdMixin, TimestampMixin):
+    __tablename__ = "campaign_events"
+
+    campaign_id: Mapped[str] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), index=True)
+    platform: Mapped[str] = mapped_column(String(64), index=True)
+    source_type: Mapped[str] = mapped_column(String(32), index=True)
+    user_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    username: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    comment_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    message_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    matched_keyword: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    user_text: Mapped[str] = mapped_column(Text, default="")
+    ai_intent: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    lead_score: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(64), default="campaign_matched", index=True)
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+    __table_args__ = (
+        Index("ix_campaign_event_comment_unique", "campaign_id", "comment_id", unique=True),
+    )
 
 
 class InstagramPost(Base, IdMixin, TimestampMixin):
@@ -439,4 +478,3 @@ class CartAbandonment(Base, IdMixin, TimestampMixin):
     checkout_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     recovery_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
-

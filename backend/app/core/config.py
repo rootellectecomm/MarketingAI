@@ -64,6 +64,8 @@ class Settings(BaseSettings):
     whatsapp_phone_number_id: str | None = None
     whatsapp_access_token: str | None = None
     whatsapp_opt_in_template_name: str = "rootellect_followup"
+    rootellect_whatsapp_number: str = "918679508311"
+    rootellect_whatsapp_link: str = "https://wa.me/918679508311"
 
     shopify_webhook_secret: str | None = None
     shopify_store_domain: str | None = None

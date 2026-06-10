@@ -22,7 +22,10 @@ export function LeadsTable() {
               <tr>
                 <Th>User</Th>
                 <Th>Stage</Th>
+                <Th>Product</Th>
+                <Th>Intent</Th>
                 <Th>Score</Th>
+                <Th>Conversion</Th>
                 <Th>WhatsApp</Th>
                 <Th>Tags</Th>
               </tr>
@@ -32,9 +35,12 @@ export function LeadsTable() {
                 <tr key={lead.id}>
                   <Td>@{lead.username ?? lead.external_user_id}</Td>
                   <Td>{lead.lifecycle_stage}</Td>
+                  <Td>{lead.product_interest ?? "-"}</Td>
+                  <Td>{lead.intent_level}</Td>
                   <Td>
                     <Badge tone={lead.score >= 75 ? "success" : lead.score >= 45 ? "warning" : "neutral"}>{lead.score}</Badge>
                   </Td>
+                  <Td>{lead.conversion_stage}</Td>
                   <Td>{lead.whatsapp_opt_in ? "Opted in" : "No opt-in"}</Td>
                   <Td>{lead.tags.join(", ")}</Td>
                 </tr>
@@ -46,4 +52,3 @@ export function LeadsTable() {
     </Card>
   );
 }
-

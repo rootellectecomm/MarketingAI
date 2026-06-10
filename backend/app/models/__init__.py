@@ -6,6 +6,7 @@ from app.models.entities import (
     AuthSession,
     AutomationEventLog,
     Campaign,
+    CampaignEvent,
     CartAbandonment,
     Comment,
     Conversation,
@@ -41,6 +42,7 @@ __all__ = [
     "AuditLog",
     "AuthSession",
     "Campaign",
+    "CampaignEvent",
     "CartAbandonment",
     "Comment",
     "Conversation",
@@ -69,4 +71,3 @@ __all__ = [
     "User",
     "WhatsAppAccount",
 ]
-

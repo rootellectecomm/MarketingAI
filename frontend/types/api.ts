@@ -26,8 +26,14 @@ export type Lead = {
   external_user_id: string;
   username: string | null;
   source_channel: string;
+  platform: string;
   lifecycle_stage: string;
   phone: string | null;
+  product_interest: string | null;
+  intent_level: string;
+  last_message: string | null;
+  source_campaign_id: string | null;
+  conversion_stage: string;
   whatsapp_opt_in: boolean;
   score: number;
   tags: string[];
@@ -38,11 +44,22 @@ export type Campaign = {
   id: string;
   name: string;
   status: string;
+  platform: string;
+  post_id: string | null;
+  product_key: string | null;
+  product_name: string | null;
+  product_link: string | null;
+  followup_link: string | null;
+  whatsapp_link: string | null;
   product_focus: string[];
   keyword_triggers: string[];
+  public_reply_template: string;
+  dm_template: string;
+  ai_prompt_override: string | null;
   public_reply_enabled: boolean;
   dm_enabled: boolean;
   whatsapp_followup_enabled: boolean;
+  ai_followup_enabled: boolean;
   metadata_json: {
     target_media_urls?: string[];
     target_media_ids?: string[];
@@ -131,12 +148,51 @@ export type KnowledgeCreate = {
 export type CampaignCreate = {
   name: string;
   status?: string;
+  platform?: string;
+  post_id?: string | null;
+  product_key?: string | null;
+  product_name?: string | null;
+  product_link?: string | null;
+  followup_link?: string | null;
+  whatsapp_link?: string | null;
   product_focus?: string[];
   keyword_triggers?: string[];
+  public_reply_template?: string;
+  dm_template?: string;
+  ai_prompt_override?: string | null;
   public_reply_enabled?: boolean;
   dm_enabled?: boolean;
   whatsapp_followup_enabled?: boolean;
+  ai_followup_enabled?: boolean;
   metadata_json?: Campaign["metadata_json"];
+};
+
+export type CampaignEvent = {
+  id: string;
+  campaign_id: string;
+  platform: string;
+  source_type: string;
+  user_id: string | null;
+  username: string | null;
+  comment_id: string | null;
+  message_id: string | null;
+  matched_keyword: string | null;
+  user_text: string;
+  ai_intent: string | null;
+  lead_score: number;
+  status: string;
+  metadata_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export type CampaignTestResult = {
+  matched_campaign: Campaign | null;
+  matched_keyword: string | null;
+  public_reply_preview: string;
+  dm_preview: string;
+  product_selected: string | null;
+  lead_score: number;
+  ai_intent: string;
 };
 
 export type FunnelSummary = {

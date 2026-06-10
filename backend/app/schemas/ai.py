@@ -2,19 +2,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.ai.product_knowledge import ROOTELLECT_PRODUCTS as PRODUCT_NAMES
 from app.models.enums import ModerationAction, SendDecision
 
-ROOTELLECT_PRODUCTS = [
-    "Mind Calm",
-    "PCOS Support",
-    "Women Multivitamin 18+",
-    "Women Multivitamin 40+",
-    "ACV Moringa",
-    "Menopause Prime Support",
-    "Menopause Bone & Joint Support",
-    "Preworkout",
-    "D3 & Calcium",
-]
+ROOTELLECT_PRODUCTS = PRODUCT_NAMES
 
 
 class RetrievedContext(BaseModel):
@@ -53,6 +44,10 @@ class AIDecision(BaseModel):
     public_reply: str = ""
     private_dm: str = ""
     whatsapp_followup: str | None = None
+    selected_product: str | None = None
+    user_intent: str = "general"
+    reply_channel: str = "instagram"
+    used_knowledge_source: str = "none"
     lead_score_delta: int = 0
     escalation_reason: str | None = None
     send_decision: SendDecision = SendDecision.queue_for_review

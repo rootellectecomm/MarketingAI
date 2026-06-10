@@ -19,6 +19,22 @@ class MockMetaProvider:
         events: list[NormalizedEvent] = []
         entries = payload.get("entry") or [payload]
         for entry in entries:
+            for index, message_event in enumerate(entry.get("messaging") or []):
+                message = message_event.get("message") or {}
+                sender = message_event.get("sender") or {}
+                event_id = str(message.get("mid") or f"mock-message-{entry.get('id', 'entry')}-{index}-{uuid4()}")
+                events.append(
+                    NormalizedEvent(
+                        provider=ProviderType.mock,
+                        event_type=EventType.instagram_dm,
+                        provider_event_id=event_id,
+                        actor_id=str(sender.get("id") or "mock-user"),
+                        actor_username=str(sender.get("id") or "messenger"),
+                        text=message.get("text") or "",
+                        provider_message_id=message.get("mid"),
+                        payload=message_event,
+                    )
+                )
             changes = entry.get("changes") or []
             if not changes and "text" in entry:
                 changes = [{"field": "comments", "value": entry}]
@@ -80,4 +96,3 @@ class MockMetaProvider:
             provider_action_id=f"mock-wa-{phone}",
             response={"template": template_name, "variables": variables or []},
         )
-

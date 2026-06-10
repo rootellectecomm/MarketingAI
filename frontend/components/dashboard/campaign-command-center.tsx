@@ -1,9 +1,9 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, RefreshCw, Send, ShieldAlert, Zap } from "lucide-react";
+import { CheckCircle2, Play, RefreshCw, Send, ShieldAlert, Zap } from "lucide-react";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +12,8 @@ import { api } from "@/services/api";
 
 export function CampaignCommandCenter() {
   const queryClient = useQueryClient();
-  const [testComment, setTestComment] = useState("details");
+  const [testComment, setTestComment] = useState("Comment SLEEP and get Mind Calm details");
+  const [testPlatform, setTestPlatform] = useState("instagram");
   const { data: campaigns = [] } = useQuery({ queryKey: ["campaigns"], queryFn: api.campaigns });
   const { data: comments = [] } = useQuery({ queryKey: ["comments"], queryFn: api.comments });
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.providerStatus });
@@ -32,12 +33,9 @@ export function CampaignCommandCenter() {
 
   const liveCampaigns = campaigns.filter((campaign) => campaign.status === "active");
   const targetedCampaigns = liveCampaigns.filter((campaign) => campaign.metadata_json?.target_media_urls?.length);
-  const matchedCampaigns = useMemo(() => {
-    const normalized = testComment.toLowerCase();
-    return liveCampaigns.filter((campaign) =>
-      campaign.keyword_triggers.some((keyword) => normalized.includes(keyword.toLowerCase()))
-    );
-  }, [liveCampaigns, testComment]);
+  const testMutation = useMutation({
+    mutationFn: () => api.testCampaign({ text: testComment, platform: testPlatform })
+  });
   const privateReplies = comments.filter((comment) => comment.private_replied).length;
   const publicReplies = comments.filter((comment) => comment.replied).length;
   const blockedAi = aiLogs.filter((log) => Boolean(log.blocked)).length;
@@ -86,25 +84,51 @@ export function CampaignCommandCenter() {
 
           <div className="grid gap-3 rounded-md border border-[var(--border)] p-3 md:grid-cols-[1fr_auto] md:items-end">
             <div>
-              <label className="text-sm font-medium">Test a reel comment before posting</label>
-              <Input value={testComment} onChange={(event) => setTestComment(event.target.value)} className="mt-2" />
+              <label className="text-sm font-medium">Test a campaign comment</label>
+              <div className="mt-2 grid gap-2 md:grid-cols-[160px_1fr]">
+                <select
+                  className="rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm outline-none"
+                  value={testPlatform}
+                  onChange={(event) => setTestPlatform(event.target.value)}
+                >
+                  <option value="instagram">Instagram</option>
+                  <option value="facebook">Facebook</option>
+                </select>
+                <Input value={testComment} onChange={(event) => setTestComment(event.target.value)} />
+              </div>
               <div className="mt-2 flex flex-wrap gap-2 text-sm">
-                {matchedCampaigns.length ? (
-                  matchedCampaigns.map((campaign) => (
-                    <Badge key={campaign.id} tone="success">
-                      Matches {campaign.name}
-                    </Badge>
-                  ))
+                {testMutation.data?.matched_campaign ? (
+                  <>
+                    <Badge tone="success">Matches {testMutation.data.matched_campaign.name}</Badge>
+                    <Badge>{testMutation.data.product_selected ?? "No product"}</Badge>
+                    <Badge tone="warning">Score {testMutation.data.lead_score}</Badge>
+                    <Badge>{testMutation.data.ai_intent}</Badge>
+                  </>
                 ) : (
-                  <Badge tone="warning">No active campaign matches this text</Badge>
+                  <Badge tone="warning">
+                    {testMutation.isSuccess ? "No active campaign matches this text" : "Run test for preview"}
+                  </Badge>
                 )}
               </div>
             </div>
-            <Button type="button" onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
-              <RefreshCw size={16} />
-              {syncMutation.isPending ? "Processing comments" : "Sync + run automation"}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="secondary" onClick={() => testMutation.mutate()} disabled={testMutation.isPending}>
+                <Play size={16} />
+                {testMutation.isPending ? "Testing..." : "Preview"}
+              </Button>
+              <Button type="button" onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
+                <RefreshCw size={16} />
+                {syncMutation.isPending ? "Processing" : "Sync + run"}
+              </Button>
+            </div>
           </div>
+
+          {testMutation.data?.matched_campaign ? (
+            <div className="grid gap-3 rounded-md border border-[var(--border)] p-3 text-sm md:grid-cols-2">
+              <PreviewBlock label="Public reply" value={testMutation.data.public_reply_preview} />
+              <PreviewBlock label="DM preview" value={testMutation.data.dm_preview} />
+            </div>
+          ) : null}
 
           {syncMutation.data ? (
             <div className="rounded-md border border-[var(--success)] p-3 text-sm text-[var(--success)]">
@@ -168,6 +192,15 @@ function HealthRow({ label, value, ok }: { label: string; value: string; ok: boo
     <div className="flex items-center justify-between gap-3 rounded-md border border-[var(--border)] px-3 py-2">
       <span className="text-[var(--muted-foreground)]">{label}</span>
       <Badge tone={ok ? "success" : "warning"}>{value}</Badge>
+    </div>
+  );
+}
+
+function PreviewBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">{label}</div>
+      <div className="mt-2 rounded-md border border-[var(--border)] bg-[var(--muted)] p-3">{value || "No message"}</div>
     </div>
   );
 }
