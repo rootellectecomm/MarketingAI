@@ -67,7 +67,7 @@ class WebhookLog(Base, IdMixin, TimestampMixin):
 
     provider: Mapped[ProviderType] = mapped_column(Enum(ProviderType, native_enum=False), index=True)
     event_id: Mapped[str | None] = mapped_column(String(255), index=True, nullable=True)
-    signature_valid: Mapped[bool] = mapped_column(Boolean, default=False)
+    signature_valid: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=False)
     status: Mapped[EventStatus] = mapped_column(Enum(EventStatus, native_enum=False), default=EventStatus.received)
     request_headers: Mapped[dict] = mapped_column(JSON, default=dict)
     raw_payload: Mapped[dict] = mapped_column(JSON, default=dict)

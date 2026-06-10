@@ -39,7 +39,7 @@ class WebhookLogRead(BaseModel):
     id: str
     provider: ProviderType
     event_id: str | None
-    signature_valid: bool
+    signature_valid: bool | None
     status: str
     error_message: str | None
     created_at: datetime

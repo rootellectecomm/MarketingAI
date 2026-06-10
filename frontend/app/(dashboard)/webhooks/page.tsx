@@ -38,7 +38,23 @@ export default function WebhooksPage() {
                   <tr key={String(row.id)}>
                     <Td>{String(row.provider)}</Td>
                     <Td>{String(row.event_id)}</Td>
-                    <Td><Badge tone={row.signature_valid ? "success" : "danger"}>{row.signature_valid ? "Valid" : "Invalid"}</Badge></Td>
+                    <Td>
+                      <Badge
+                        tone={
+                          row.signature_valid === true
+                            ? "success"
+                            : row.signature_valid === false
+                              ? "danger"
+                              : "warning"
+                        }
+                      >
+                        {row.signature_valid === true
+                          ? "Valid"
+                          : row.signature_valid === false
+                            ? "Invalid"
+                            : "Unknown"}
+                      </Badge>
+                    </Td>
                     <Td>{String(row.status)}</Td>
                     <Td>{new Date(String(row.created_at)).toLocaleString()}</Td>
                   </tr>

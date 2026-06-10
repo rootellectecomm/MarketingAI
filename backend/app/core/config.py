@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     meta_verify_token: str = "rootellect-webhook-token"
     meta_app_id: str | None = None
     meta_app_secret: str = "replace-meta-app-secret"
+    whatsapp_app_secret: str | None = None
     meta_graph_version: str = "v25.0"
     meta_oauth_redirect_uri: str | None = None
     meta_connect_success_url: str | None = None

@@ -12,7 +12,7 @@ from app.models.entities import WebhookLog
 from app.models.enums import EventStatus, ProviderType
 from app.queues.enqueue import enqueue_webhook_job
 from app.services.event_processor import process_webhook_payload
-from app.webhooks.meta import verify_meta_signature, webhook_fingerprint
+from app.webhooks.meta import evaluate_webhook_signature, signature_status_to_bool, webhook_fingerprint
 from app.webhooks.verify import verify_meta_hub_challenge
 
 logger = structlog.get_logger(__name__)
@@ -82,19 +82,40 @@ async def _receive_webhook(
     settings = get_settings()
     raw_body = await request.body()
     signature = request.headers.get("x-hub-signature-256")
-    signature_valid = verify_meta_signature(raw_body, signature, settings.meta_app_secret)
-    if not signature_valid:
+    payload = json.loads(raw_body.decode() or "{}")
+    if channel == "instagram" and payload.get("object") == "whatsapp_business_account":
+        channel = "whatsapp"
+    provider, channel = _resolve_webhook_target(channel)
+
+    if channel == "whatsapp":
+        signature_status = evaluate_webhook_signature(
+            raw_body,
+            signature,
+            settings.whatsapp_app_secret,
+            unknown_when_secret_missing=True,
+        )
+    else:
+        signature_status = evaluate_webhook_signature(
+            raw_body,
+            signature,
+            settings.meta_app_secret,
+            unknown_when_secret_missing=False,
+        )
+    signature_valid = signature_status_to_bool(signature_status)
+    if signature_status == "invalid":
         logger.warning(
             "meta_webhook_signature_invalid",
             channel=channel,
             path=request.url.path,
             environment=settings.environment,
         )
-
-    payload = json.loads(raw_body.decode() or "{}")
-    if channel == "instagram" and payload.get("object") == "whatsapp_business_account":
-        channel = "whatsapp"
-    provider, channel = _resolve_webhook_target(channel)
+    elif signature_status == "unknown" and channel == "whatsapp":
+        logger.info(
+            "whatsapp_webhook_signature_unknown",
+            channel=channel,
+            path=request.url.path,
+            reason="WHATSAPP_APP_SECRET not configured",
+        )
     if channel == "whatsapp":
         for entry in payload.get("entry", []):
             for change in entry.get("changes", []):
@@ -138,4 +159,5 @@ async def _receive_webhook(
         "job_id": job_id,
         "processed_inline": processed_inline,
         "signature_valid": signature_valid,
+        "signature_status": signature_status,
     }

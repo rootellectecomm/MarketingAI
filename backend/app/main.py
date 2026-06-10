@@ -107,6 +107,7 @@ async def debug_config() -> dict:
         "openai_configured": bool(settings.openai_api_key),
         "meta_app_id_configured": bool(settings.meta_app_id),
         "meta_app_secret_configured": bool(settings.meta_app_secret),
+        "whatsapp_app_secret_configured": bool(settings.whatsapp_app_secret),
         "provider_mode": settings.provider_mode,
         "chroma_host": settings.chroma_host,
     }
