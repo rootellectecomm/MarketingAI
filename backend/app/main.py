@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Query, Request, WebSocket, WebSocketDisconnect
@@ -10,6 +11,8 @@ from app.api.v1.router import api_router
 from app.core.config import get_cors_origin_regex, get_cors_origins, get_settings, redis_enabled, upstash_enabled
 from app.queues.provider import get_queue_provider
 from app.core.logging import configure_logging
+from app.database.init_db import ensure_schema
+from app.database.migrations import run_pending_migrations
 from app.database.session import dispose_engine, get_engine, get_session
 from app.middleware.cors import VercelCorsMiddleware
 from app.middleware.security import RateLimitMiddleware, SecurityHeadersMiddleware
@@ -23,6 +26,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging()
+    await asyncio.to_thread(run_pending_migrations)
+    await ensure_schema()
     yield
     await close_arq_pool()
     await dispose_engine()

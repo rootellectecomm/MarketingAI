@@ -1,9 +1,14 @@
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.product_knowledge import ROOTELLECT_PRODUCT_CATALOG
 from app.api.dependencies import get_current_user
+from app.database.init_db import ensure_schema
+from app.database.migrations import run_pending_migrations
 from app.database.session import get_session
 from app.models.entities import Campaign, CampaignEvent
 from app.schemas.crm import (
@@ -18,6 +23,11 @@ from app.services.campaign_conversion import ROOTELLECT_WHATSAPP_LINK, CampaignC
 from app.services.campaign_matcher import instagram_shortcode
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"], dependencies=[Depends(get_current_user)])
+
+
+async def _prepare_campaign_storage() -> None:
+    await ensure_schema()
+    await asyncio.to_thread(run_pending_migrations)
 
 
 async def _ensure_default_campaign(session: AsyncSession) -> None:
@@ -89,56 +99,44 @@ def _campaign_data(payload: CampaignCreate | CampaignUpdate, *, exclude_unset: b
     return data
 
 
+def _handle_campaign_db_error(exc: Exception) -> HTTPException:
+    message = str(exc)
+    if "does not exist" in message or "UndefinedColumn" in message:
+        return HTTPException(
+            status_code=503,
+            detail="Campaign database schema is out of date. Redeploy the backend or run alembic upgrade head.",
+        )
+    return HTTPException(status_code=500, detail=f"Campaign request failed: {message}")
+
+
 @router.get("", response_model=list[CampaignRead])
 async def list_campaigns(session: AsyncSession = Depends(get_session)) -> list[CampaignRead]:
-    await _ensure_default_campaign(session)
-    result = await session.execute(select(Campaign).order_by(Campaign.created_at.desc()))
-    return [CampaignRead.model_validate(item) for item in result.scalars().all()]
+    try:
+        await _prepare_campaign_storage()
+        await _ensure_default_campaign(session)
+        result = await session.execute(select(Campaign).order_by(Campaign.created_at.desc()))
+        return [CampaignRead.model_validate(item) for item in result.scalars().all()]
+    except SQLAlchemyError as exc:
+        raise _handle_campaign_db_error(exc) from exc
 
 
 @router.post("", response_model=CampaignRead)
 async def create_campaign(payload: CampaignCreate, session: AsyncSession = Depends(get_session)) -> CampaignRead:
-    campaign = Campaign(**_campaign_data(payload))
-    session.add(campaign)
-    await session.commit()
-    await session.refresh(campaign)
-    return CampaignRead.model_validate(campaign)
-
-
-@router.patch("/{campaign_id}", response_model=CampaignRead)
-async def update_campaign(
-    campaign_id: str,
-    payload: CampaignUpdate,
-    session: AsyncSession = Depends(get_session),
-) -> CampaignRead:
-    campaign = await session.get(Campaign, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-
-    for key, value in _campaign_data(payload, exclude_unset=True).items():
-        setattr(campaign, key, value)
-    await session.commit()
-    await session.refresh(campaign)
-    return CampaignRead.model_validate(campaign)
-
-
-@router.get("/{campaign_id}/events", response_model=list[CampaignEventRead])
-async def campaign_events(
-    campaign_id: str,
-    session: AsyncSession = Depends(get_session),
-    limit: int = 100,
-) -> list[CampaignEventRead]:
-    result = await session.execute(
-        select(CampaignEvent)
-        .where(CampaignEvent.campaign_id == campaign_id)
-        .order_by(CampaignEvent.created_at.desc())
-        .limit(limit)
-    )
-    return [CampaignEventRead.model_validate(item) for item in result.scalars().all()]
+    try:
+        await _prepare_campaign_storage()
+        campaign = Campaign(**_campaign_data(payload))
+        session.add(campaign)
+        await session.commit()
+        await session.refresh(campaign)
+        return CampaignRead.model_validate(campaign)
+    except SQLAlchemyError as exc:
+        await session.rollback()
+        raise _handle_campaign_db_error(exc) from exc
 
 
 @router.post("/test", response_model=CampaignTestResult)
 async def test_campaign(payload: CampaignTestRequest, session: AsyncSession = Depends(get_session)) -> CampaignTestResult:
+    await _prepare_campaign_storage()
     service = CampaignConversionService()
     campaigns = await service.matcher.match_active(
         session,
@@ -160,3 +158,44 @@ async def test_campaign(payload: CampaignTestRequest, session: AsyncSession = De
         lead_score=preview.lead_score,
         ai_intent=preview.ai_intent,
     )
+
+
+@router.patch("/{campaign_id}", response_model=CampaignRead)
+async def update_campaign(
+    campaign_id: str,
+    payload: CampaignUpdate,
+    session: AsyncSession = Depends(get_session),
+) -> CampaignRead:
+    try:
+        await _prepare_campaign_storage()
+        campaign = await session.get(Campaign, campaign_id)
+        if not campaign:
+            raise HTTPException(status_code=404, detail="Campaign not found")
+
+        for key, value in _campaign_data(payload, exclude_unset=True).items():
+            setattr(campaign, key, value)
+        await session.commit()
+        await session.refresh(campaign)
+        return CampaignRead.model_validate(campaign)
+    except SQLAlchemyError as exc:
+        await session.rollback()
+        raise _handle_campaign_db_error(exc) from exc
+
+
+@router.get("/{campaign_id}/events", response_model=list[CampaignEventRead])
+async def campaign_events(
+    campaign_id: str,
+    session: AsyncSession = Depends(get_session),
+    limit: int = 100,
+) -> list[CampaignEventRead]:
+    try:
+        await _prepare_campaign_storage()
+        result = await session.execute(
+            select(CampaignEvent)
+            .where(CampaignEvent.campaign_id == campaign_id)
+            .order_by(CampaignEvent.created_at.desc())
+            .limit(limit)
+        )
+        return [CampaignEventRead.model_validate(item) for item in result.scalars().all()]
+    except SQLAlchemyError as exc:
+        raise _handle_campaign_db_error(exc) from exc

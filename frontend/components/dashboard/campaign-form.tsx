@@ -117,6 +117,7 @@ export function CampaignForm() {
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      setName(`${productName} Campaign`);
     }
   });
 

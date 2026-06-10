@@ -83,6 +83,19 @@ async function getJson<T>(path: string, fallback: T): Promise<T> {
   }
 }
 
+async function fetchJson<T>(path: string): Promise<T> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("rootellect_token") : null;
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    cache: "no-store"
+  });
+  if (!response.ok) {
+    handleUnauthorized(response);
+    throw new Error(await readApiError(response));
+  }
+  return (await response.json()) as T;
+}
+
 async function postJson<T>(path: string, body?: unknown): Promise<T> {
   const token = typeof window !== "undefined" ? localStorage.getItem("rootellect_token") : null;
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -199,10 +212,10 @@ export const api = {
   metrics: () => getJson<DashboardMetrics>("/dashboard/metrics", USE_MOCK_DATA ? metrics : emptyMetrics),
   comments: () => getJson<CommentItem[]>("/comments", USE_MOCK_DATA ? comments : []),
   leads: () => getJson<Lead[]>("/leads", USE_MOCK_DATA ? leads : []),
-  campaigns: () => getJson<Campaign[]>("/campaigns", USE_MOCK_DATA ? campaigns : []),
+  campaigns: () => (USE_MOCK_DATA ? Promise.resolve(campaigns) : fetchJson<Campaign[]>("/campaigns")),
   createCampaign: (payload: CampaignCreate) => postJson<Campaign>("/campaigns", payload),
   updateCampaign: (id: string, payload: Partial<CampaignCreate>) => patchJson<Campaign>(`/campaigns/${id}`, payload),
-  campaignEvents: (id: string) => getJson<CampaignEvent[]>(`/campaigns/${id}/events`, []),
+  campaignEvents: (id: string) => fetchJson<CampaignEvent[]>(`/campaigns/${id}/events`),
   testCampaign: (payload: { text: string; platform?: string; post_id?: string | null }) =>
     postJson<CampaignTestResult>("/campaigns/test", payload),
   conversations: () => getJson<ConversationItem[]>("/conversations", []),

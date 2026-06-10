@@ -13,7 +13,7 @@ export function CampaignList() {
   const queryClient = useQueryClient();
   const [linkDrafts, setLinkDrafts] = useState<Record<string, string>>({});
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
-  const { data = [] } = useQuery({ queryKey: ["campaigns"], queryFn: api.campaigns });
+  const { data = [], isError, error } = useQuery({ queryKey: ["campaigns"], queryFn: api.campaigns });
   const selectedId = selectedCampaignId ?? data[0]?.id ?? "";
   const { data: events = [] } = useQuery({
     queryKey: ["campaign-events", selectedId],
@@ -47,6 +47,13 @@ export function CampaignList() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
+      {isError ? (
+        <Card>
+          <CardContent className="pt-6 text-sm text-[var(--danger)]">
+            {error instanceof Error ? error.message : "Could not load campaigns."}
+          </CardContent>
+        </Card>
+      ) : null}
       {data.map((campaign) => {
         const targetUrls = campaign.metadata_json?.target_media_urls ?? [];
         const resolvedIds = campaign.metadata_json?.target_media_ids ?? [];
