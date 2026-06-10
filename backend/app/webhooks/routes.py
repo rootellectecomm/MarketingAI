@@ -138,20 +138,24 @@ async def _receive_webhook(
     await session.commit()
     await session.refresh(log)
 
-    job_id = await enqueue_webhook_job(log.id, payload, channel)
+    job_id: str | None = None
     processed_inline = False
     inline_reason = "queue_unavailable"
 
-    if job_id:
-        log.status = EventStatus.queued
-        await session.commit()
-        if os.getenv("VERCEL"):
-            inline_reason = "serverless_after_enqueue"
-            await _process_webhook_inline(log.id, payload, channel, reason=inline_reason)
-            processed_inline = True
-    else:
+    if os.getenv("VERCEL"):
+        # Serverless has no background worker to drain the queue, so enqueueing
+        # would leak jobs forever. Process synchronously instead.
+        inline_reason = "serverless"
         await _process_webhook_inline(log.id, payload, channel, reason=inline_reason)
         processed_inline = True
+    else:
+        job_id = await enqueue_webhook_job(log.id, payload, channel)
+        if job_id:
+            log.status = EventStatus.queued
+            await session.commit()
+        else:
+            await _process_webhook_inline(log.id, payload, channel, reason=inline_reason)
+            processed_inline = True
 
     return {
         "ok": True,
