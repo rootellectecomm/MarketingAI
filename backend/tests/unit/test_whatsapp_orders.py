@@ -181,7 +181,7 @@ async def test_delivery_schedules_follow_ups_and_respects_marketing_consent(sess
     later = DAYTIME + timedelta(days=40)
     await service.dispatch_due(session, now=later)
     rows = {r.kind: r for r in (await session.execute(select(WhatsAppNotification))).scalars()}
-    assert rows["usage_guide"].status == "sent"
+    assert (rows["usage_guide"].status, rows["usage_guide"].error) == ("skipped", "no_marketing_opt_in")
     assert rows["review_request"].status == "sent"
     assert rows["reorder_reminder"].status == "skipped"
     assert rows["reorder_reminder"].error == "no_marketing_opt_in"

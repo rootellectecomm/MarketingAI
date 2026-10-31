@@ -137,8 +137,10 @@ TEMPLATES: dict[str, WhatsAppTemplate] = {
         WhatsAppTemplate(
             kind="usage_guide",
             name="rootellect_usage_guide_v1",
-            category="UTILITY",
-            consent="transactional",
+            # Meta re-classified this as Marketing on review (2026-10-31), so it
+            # may only go to customers who opted in to marketing messages.
+            category="MARKETING",
+            consent="marketing",
             body=(
                 "Hi {{1}}, a quick note on getting started with your {{2}}.\n\n"
                 "Take it daily as directed on the label, ideally at the same time each day, alongside a balanced routine. "
