@@ -10,6 +10,22 @@ from app.services.providers.base import ProviderActionResult
 from app.services.providers.mock import MockMetaProvider
 
 
+def build_template_components(body_params: list[str] | None, button_params: list[dict] | None) -> list[dict]:
+    components: list[dict] = []
+    if body_params:
+        components.append({"type": "body", "parameters": [{"type": "text", "text": str(value)} for value in body_params]})
+    for button in button_params or []:
+        sub_type = button["sub_type"]
+        parameter = {"type": "payload", "payload": str(button["value"])} if sub_type == "quick_reply" else {
+            "type": "text",
+            "text": str(button["value"]),
+        }
+        components.append(
+            {"type": "button", "sub_type": sub_type, "index": str(button["index"]), "parameters": [parameter]}
+        )
+    return components
+
+
 class InstagramProfessionalProvider(MockMetaProvider):
     provider_type = ProviderType.instagram_professional
 
@@ -130,6 +146,47 @@ class WhatsAppCloudProvider(MockMetaProvider):
             f"https://graph.facebook.com/{self.settings.meta_graph_version}/"
             f"{self.phone_number_id}/messages"
         )
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                response = await client.post(url, json=payload, headers={"Authorization": f"Bearer {self.access_token}"})
+            data = response.json() if response.content else {}
+            return ProviderActionResult(
+                ok=response.is_success,
+                provider_action_id=str((data.get("messages") or [{}])[0].get("id", "")),
+                status_code=response.status_code,
+                response=data,
+                error=None if response.is_success else format_graph_api_error(data, response.status_code),
+            )
+        except httpx.HTTPError as exc:
+            return ProviderActionResult(ok=False, error=str(exc))
+
+    async def send_template(
+        self,
+        phone: str,
+        template_name: str,
+        language: str,
+        body_params: list[str] | None = None,
+        button_params: list[dict] | None = None,
+    ) -> ProviderActionResult:
+        """Send an approved template with body variables and button parameters.
+
+        ``button_params`` items look like ``{"index": 0, "sub_type": "url", "value": "RT-1001"}``
+        (dynamic URL suffix) or ``{"index": 1, "sub_type": "quick_reply", "value": "COD_CANCEL:RT-1001"}``
+        (payload returned to us when the customer taps the button).
+        """
+        if not self.access_token or not self.phone_number_id:
+            return ProviderActionResult(ok=False, error="Missing WhatsApp credentials")
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": phone.lstrip("+"),
+            "type": "template",
+            "template": {
+                "name": template_name,
+                "language": {"code": language},
+                "components": build_template_components(body_params, button_params),
+            },
+        }
+        url = f"https://graph.facebook.com/{self.settings.meta_graph_version}/{self.phone_number_id}/messages"
         try:
             async with httpx.AsyncClient(timeout=20) as client:
                 response = await client.post(url, json=payload, headers={"Authorization": f"Bearer {self.access_token}"})

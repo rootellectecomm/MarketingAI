@@ -16,6 +16,7 @@ from app.api.v1.routes import (
     me,
     meta,
     settings,
+    whatsapp,
 )
 
 api_router = APIRouter()
@@ -34,3 +35,4 @@ api_router.include_router(content.router)
 api_router.include_router(commerce.router)
 api_router.include_router(logs.router)
 api_router.include_router(settings.router)
+api_router.include_router(whatsapp.router)

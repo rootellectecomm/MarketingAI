@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-PUBLIC_WEBHOOK_PREFIXES = ("/webhooks/meta/",)
+# Each of these authenticates itself (Meta signature, Rootellect HMAC, cron secret).
+PUBLIC_WEBHOOK_PREFIXES = ("/webhooks/meta/", "/webhooks/rootellect/", "/webhooks/cron/")
 PUBLIC_WEBHOOK_EXACT = {"/webhook"}
 
 

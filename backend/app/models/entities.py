@@ -468,6 +468,52 @@ class Order(Base, IdMixin, TimestampMixin):
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
+class WhatsAppContact(Base, IdMixin, TimestampMixin):
+    """Per-phone WhatsApp consent and service-window state for order customers.
+
+    ``phone`` is stored as digits with country code and no plus sign, which is
+    the format WhatsApp uses for ``wa_id``.
+    """
+
+    __tablename__ = "whatsapp_contacts"
+
+    phone: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    first_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    transactional_opt_in: Mapped[bool] = mapped_column(Boolean, default=True)
+    transactional_opt_in_source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    marketing_opt_in: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    marketing_opt_in_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    marketing_opt_in_source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    opted_out_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_inbound_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class WhatsAppNotification(Base, IdMixin, TimestampMixin):
+    """One WhatsApp template send (immediate or scheduled), idempotent by key."""
+
+    __tablename__ = "whatsapp_notifications"
+
+    idempotency_key: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    phone: Mapped[str] = mapped_column(String(32), index=True)
+    kind: Mapped[str] = mapped_column(String(64), index=True)
+    template_name: Mapped[str] = mapped_column(String(255))
+    category: Mapped[str] = mapped_column(String(32), default="utility")
+    order_external_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    body_params: Mapped[list] = mapped_column(JSON, default=list)
+    button_params: Mapped[list] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(32), default="scheduled", index=True)
+    scheduled_for: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    provider_message_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
 class CartAbandonment(Base, IdMixin, TimestampMixin):
     __tablename__ = "cart_abandonments"
 
