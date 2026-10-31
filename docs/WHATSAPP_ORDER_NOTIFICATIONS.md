@@ -12,7 +12,7 @@ Automated WhatsApp messages for rootellect.com orders, sent through the WhatsApp
 | Out for delivery (+ COD amount) | `shipment.updated` → `out_for_delivery` | Next send window | Utility | Every customer |
 | Delivery attempt failed | `shipment.updated` → `delivery_failed` | Next send window, max once a day | Utility | Every customer |
 | Delivered | `shipment.updated` → `delivered` | Next send window | Utility | Every customer |
-| How to take it | Delivered + 2 days, 10:30 IST | Scheduled | Utility | Every customer |
+| How to take it | Delivered + 2 days, 10:30 IST | Scheduled | Marketing (re-classified by Meta) | Marketing opt-ins only |
 | Feedback request | Delivered + 14 days, 11:00 IST | Scheduled | Utility | Customers with a review link |
 | Reorder reminder | 5 days before the first product runs out | Scheduled | Marketing | Marketing opt-ins only |
 | Cart reminder | `checkout.abandoned` + 1 hour | Scheduled | Marketing | Marketing opt-ins only, skipped if they bought |
