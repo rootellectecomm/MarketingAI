@@ -14,7 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.database.init_db import ensure_schema
 from app.database.session import get_session
+from app.services.provider_factory import get_whatsapp_provider
 from app.services.whatsapp_orders import EventValidationError, WhatsAppOrderService
+from app.services.whatsapp_template_sync import sync_templates
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["rootellect commerce"])
@@ -96,6 +98,36 @@ async def _cron_authorized(request: Request) -> bool:
             await request.body(),
         )
     return False
+
+
+@router.post("/webhooks/cron/whatsapp-templates")
+async def sync_whatsapp_templates(request: Request, session: AsyncSession = Depends(get_session)) -> dict:
+    """Submit missing order templates to Meta and report approval status.
+
+    Body: ``{"submit": true}`` to create missing templates, ``false`` to only report.
+    Uses the WhatsApp credentials the backend already sends with.
+    """
+    if not await _cron_authorized(request):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    settings = get_settings()
+    if not settings.whatsapp_business_account_id:
+        raise HTTPException(status_code=400, detail="Set WHATSAPP_BUSINESS_ACCOUNT_ID (the WhatsApp Business Account ID)")
+    try:
+        options = json.loads((await request.body()).decode() or "{}")
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        options = {}
+    await ensure_schema()
+    provider = await get_whatsapp_provider(session)
+    token = getattr(provider, "access_token", None)
+    if not token:
+        raise HTTPException(status_code=400, detail="No WhatsApp access token configured")
+    try:
+        templates = await sync_templates(
+            settings, token, settings.whatsapp_business_account_id, submit=bool(options.get("submit", True))
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {"ok": True, "templates": templates}
 
 
 @router.api_route("/webhooks/cron/whatsapp-dispatch", methods=["GET", "POST"])
