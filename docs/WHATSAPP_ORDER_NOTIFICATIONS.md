@@ -45,7 +45,13 @@ Template copy lives in `backend/app/services/whatsapp_templates.py`. It is the s
    - rootellect.com's Shiprocket cron pings it after every run (built in, uses the shared signed secret).
    - An external scheduler (e.g. cron-job.org) every 10–15 minutes with `Authorization: Bearer <CRON_SECRET>`.
    - On the Docker/VPS deployment, the ARQ worker runs it every 10 minutes.
-4. **Deploy and test** with a real order to your own number.
+4. **Test without a real order.** From `backend/`, with `ROOTELLECT_EVENTS_SECRET` set:
+   ```bash
+   python scripts/send_test_order_events.py --url https://<backend-domain> --phone <your number>          # prepaid journey
+   python scripts/send_test_order_events.py --url https://<backend-domain> --phone <your number> --cod    # COD buttons
+   python scripts/send_test_order_events.py --url https://<backend-domain> --phone <your number> --follow-ups
+   ```
+   Then place one real order to your own number from rootellect.com.
 
 ## Event contract (rootellect.com → MarketingAI)
 
