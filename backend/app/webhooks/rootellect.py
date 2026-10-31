@@ -7,6 +7,7 @@ import hmac
 import json
 import time
 
+import httpx
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -128,6 +129,46 @@ async def sync_whatsapp_templates(request: Request, session: AsyncSession = Depe
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {"ok": True, "templates": templates}
+
+
+PHONE_FIELDS = (
+    "display_phone_number,verified_name,status,platform_type,code_verification_status,"
+    "name_status,quality_rating,account_mode,is_on_biz_app,messaging_limit_tier"
+)
+
+
+@router.post("/webhooks/cron/whatsapp-phone")
+async def whatsapp_phone_status(request: Request, session: AsyncSession = Depends(get_session)) -> dict:
+    """Report the sending number's Cloud API status; optionally register it.
+
+    Body: ``{}`` for status only, or ``{"register_pin": "123456"}`` to register the
+    number for the Cloud API (the PIN becomes / must match its two-step verification PIN).
+    """
+    if not await _cron_authorized(request):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    try:
+        options = json.loads((await request.body()).decode() or "{}")
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        options = {}
+    provider = await get_whatsapp_provider(session)
+    token = getattr(provider, "access_token", None)
+    phone_number_id = getattr(provider, "phone_number_id", None)
+    if not token or not phone_number_id:
+        raise HTTPException(status_code=400, detail="WhatsApp access token or phone number ID missing")
+    base = f"https://graph.facebook.com/{get_settings().meta_graph_version}/{phone_number_id}"
+    headers = {"Authorization": f"Bearer {token}"}
+    async with httpx.AsyncClient(timeout=30) as client:
+        info = await client.get(base, params={"fields": PHONE_FIELDS}, headers=headers)
+        result: dict = {"phone_number_id": phone_number_id, "status": info.json() if info.content else {}}
+        pin = str(options.get("register_pin") or "").strip()
+        if pin:
+            if not (pin.isdigit() and len(pin) == 6):
+                raise HTTPException(status_code=422, detail="register_pin must be 6 digits")
+            registered = await client.post(
+                f"{base}/register", json={"messaging_product": "whatsapp", "pin": pin}, headers=headers
+            )
+            result["register"] = registered.json() if registered.content else {"status_code": registered.status_code}
+    return {"ok": True, **result}
 
 
 @router.api_route("/webhooks/cron/whatsapp-dispatch", methods=["GET", "POST"])
