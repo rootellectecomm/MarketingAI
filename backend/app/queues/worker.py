@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 
 from arq import cron
 from arq.connections import RedisSettings
 
 from app.core.config import get_settings, upstash_enabled
+from app.database.session import get_sessionmaker
 from app.queues.upstash import drain_upstash_webhook_jobs
 from app.services.event_processor import process_webhook_payload
 from app.services.funnel_runner import FunnelRunner
 from app.services.retention_jobs import RetentionJobRunner
+from app.services.whatsapp_orders import WhatsAppOrderService
 
 
 async def process_webhook_job(ctx, log_id: str, payload: dict, channel: str) -> None:
@@ -28,6 +31,13 @@ async def process_retention_touchpoints(ctx) -> None:
     await RetentionJobRunner().process_touchpoints()
 
 
+async def process_whatsapp_notifications(ctx) -> dict:
+    async with get_sessionmaker()() as session:
+        counts = await WhatsAppOrderService().dispatch_due(session, limit=100)
+        await session.commit()
+        return counts
+
+
 async def process_upstash_webhook_jobs(ctx, max_jobs: int = 20) -> int:
     if not upstash_enabled():
         return 0
@@ -41,15 +51,19 @@ class WorkerSettings:
         process_due_funnel_steps,
         process_conversation_recovery,
         process_retention_touchpoints,
+        process_whatsapp_notifications,
     ]
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
     max_jobs = 50
     job_timeout = 180
     max_tries = 3
     retry_jobs = True
+    # Cron hours below are local (IST) times, not server UTC.
+    timezone = ZoneInfo(get_settings().whatsapp_send_timezone)
     cron_jobs = [
         cron(process_upstash_webhook_jobs, minute=set(range(0, 60, 2))),
         cron(process_due_funnel_steps, minute={0, 15, 30, 45}),
-        cron(process_conversation_recovery, hour={9, 15, 21}, minute=0),
+        cron(process_conversation_recovery, hour={10, 15, 19}, minute=0),
         cron(process_retention_touchpoints, hour=10, minute=30),
+        cron(process_whatsapp_notifications, minute=set(range(0, 60, 10))),
     ]

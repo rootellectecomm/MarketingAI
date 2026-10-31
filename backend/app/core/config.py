@@ -70,6 +70,19 @@ class Settings(BaseSettings):
     shopify_webhook_secret: str | None = None
     shopify_store_domain: str | None = None
 
+    # rootellect.com order events -> WhatsApp order notifications
+    rootellect_events_secret: str | None = None
+    rootellect_site_url: str = "https://www.rootellect.com"
+    whatsapp_business_account_id: str | None = None
+    whatsapp_template_language: str = "en"
+    whatsapp_order_notifications_enabled: bool = True
+    # Scheduled sends wait for this local window (IST by default); order and
+    # COD confirmations are sent immediately because the customer just acted.
+    whatsapp_send_timezone: str = "Asia/Kolkata"
+    whatsapp_quiet_hours_start: int = 21
+    whatsapp_quiet_hours_end: int = 9
+    cron_secret: str | None = None
+
     rate_limit_requests: int = 120
     rate_limit_window_seconds: int = 60
 

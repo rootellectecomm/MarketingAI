@@ -33,6 +33,8 @@ from app.models.entities import (
     SocialEvent,
     User,
     WhatsAppAccount,
+    WhatsAppContact,
+    WhatsAppNotification,
 )
 
 __all__ = [
@@ -70,4 +72,6 @@ __all__ = [
     "SocialEvent",
     "User",
     "WhatsAppAccount",
+    "WhatsAppContact",
+    "WhatsAppNotification",
 ]

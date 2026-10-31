@@ -88,6 +88,20 @@ class MockMetaProvider:
             response={"phone": phone, "message": message},
         )
 
+    async def send_template(
+        self,
+        phone: str,
+        template_name: str,
+        language: str,
+        body_params: list[str] | None = None,
+        button_params: list[dict] | None = None,
+    ) -> ProviderActionResult:
+        return ProviderActionResult(
+            ok=True,
+            provider_action_id=f"mock-wa-{template_name}-{phone}",
+            response={"template": template_name, "language": language, "body": body_params or [], "buttons": button_params or []},
+        )
+
     async def send_whatsapp_template(
         self, phone: str, template_name: str, variables: list[str] | None = None
     ) -> ProviderActionResult:

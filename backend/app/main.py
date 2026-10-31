@@ -18,6 +18,7 @@ from app.middleware.cors import VercelCorsMiddleware
 from app.middleware.security import RateLimitMiddleware, SecurityHeadersMiddleware
 from app.queues.enqueue import close_arq_pool
 from app.realtime import manager
+from app.webhooks.rootellect import router as rootellect_router
 from app.webhooks.routes import _receive_webhook, router as webhook_router
 from app.webhooks.verify import verify_meta_hub_challenge
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -57,6 +58,7 @@ app.add_middleware(VercelCorsMiddleware)
 
 app.include_router(api_router, prefix=settings.api_v1_prefix)
 app.include_router(webhook_router)
+app.include_router(rootellect_router)
 
 
 @app.get("/webhook", response_class=PlainTextResponse, tags=["meta webhooks"])

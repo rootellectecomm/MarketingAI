@@ -112,12 +112,12 @@ class FunnelRunner:
                     if lead.whatsapp_opt_in:
                         await provider.send_whatsapp_text(lead.phone, step.message_template)
                     else:
+                        # Sending a template is not consent: opt-in stays as the customer set it.
                         await provider.send_whatsapp_template(
                             lead.phone,
                             settings.whatsapp_opt_in_template_name,
                             [step.message_template[:200]],
                         )
-                        lead.whatsapp_opt_in = True
 
                 next_step = await session.scalar(
                     select(FunnelStep)

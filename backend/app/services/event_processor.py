@@ -39,6 +39,7 @@ from app.services.phone_utils import extract_phone
 from app.services.provider_factory import get_instagram_provider, get_whatsapp_provider
 from app.services.retention_jobs import RetentionJobRunner
 from app.services.wellness_segments import detect_wellness_segment
+from app.services.whatsapp_orders import WhatsAppOrderService
 
 logger = structlog.get_logger(__name__)
 
@@ -466,6 +467,16 @@ async def process_webhook_payload(log_id: str, payload: dict, channel: str, *, i
         log = await session.get(WebhookLog, log_id)
         try:
             events = await provider.normalize_event(payload)
+            if channel == "whatsapp":
+                # Delivery statuses, STOP/START and COD button taps are handled by the
+                # order notification service; those messages must not get an AI reply.
+                consumed: set[str] = set()
+                try:
+                    async with session.begin_nested():
+                        consumed = await WhatsAppOrderService().handle_inbound_webhook(session, payload)
+                except Exception as exc:  # noqa: BLE001 - order notifications must never block AI replies
+                    logger.warning("whatsapp_order_inbound_failed", log_id=log_id, error=str(exc))
+                events = [event for event in events if event.provider_message_id not in consumed]
             if log:
                 log.status = EventStatus.queued
             for event in events:
