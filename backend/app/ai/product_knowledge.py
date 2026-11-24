@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 
 
 @dataclass(frozen=True)
@@ -226,12 +228,51 @@ def is_hinglish(text: str) -> bool:
     return any(marker in lowered for marker in HINGLISH_MARKERS)
 
 
+MENU_CHOICES = {"1": "Mind Calm", "2": "Women Balance", "3": "PCOS Support", "4": "Perimenopause Support"}
+# Extra everyday / Hinglish words customers use on WhatsApp.
+EXTRA_TRIGGERS = {
+    "Mind Calm": ("anxiety", "anxious", "tension", "chinta", "nind", "insomnia", "calm", "relax", "overthink"),
+    "Women Balance": ("mood swings", "hormone", "hormones", "hormonal", "fatigue", "energy", "cramps"),
+    "PCOS Support": ("pcod", "pcos", "facial hair", "acne"),
+    "Perimenopause Support": ("hot flash", "hot flashes", "night sweats", "40+", "45+"),
+}
+
+
+def _tokens(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9+]+", text.lower())
+
+
+def _fuzzy_hit(tokens: list[str], trigger: str) -> bool:
+    """Loose match: every word of a multi-word trigger present in any order
+    ("mind bahut active" -> "mind active"), or a typo of a single-word trigger
+    ("strees" -> "stress")."""
+    if " " in trigger:
+        words = trigger.split()
+        return len(words) > 1 and all(word in tokens for word in words)
+    if len(trigger) < 5:
+        return False
+    return any(
+        len(token) >= 4 and abs(len(token) - len(trigger)) <= 2 and SequenceMatcher(None, token, trigger).ratio() >= 0.8
+        for token in tokens
+    )
+
+
 def route_product(text: str) -> RootellectProduct | None:
-    lowered = text.lower()
+    lowered = text.lower().strip()
+    choice = MENU_CHOICES.get(lowered.strip(" .)"))
+    if choice:
+        return ROOTELLECT_PRODUCT_CATALOG[choice]
     priority = ("PCOS Support", "Perimenopause Support", "Women Balance", "Mind Calm")
     for product_name in priority:
         product = ROOTELLECT_PRODUCT_CATALOG[product_name]
-        if product.name.lower() in lowered or any(trigger in lowered for trigger in product.triggers):
+        triggers = product.triggers + EXTRA_TRIGGERS.get(product_name, ())
+        if product.name.lower() in lowered or any(trigger in lowered for trigger in triggers):
+            return product
+    tokens = _tokens(lowered)
+    for product_name in priority:
+        product = ROOTELLECT_PRODUCT_CATALOG[product_name]
+        triggers = product.triggers + EXTRA_TRIGGERS.get(product_name, ())
+        if any(_fuzzy_hit(tokens, trigger) for trigger in triggers):
             return product
     return None
 

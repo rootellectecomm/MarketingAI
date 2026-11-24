@@ -120,6 +120,24 @@ class OpenAIDecisionClient:
                 source=source,
             )
 
+        if not selected_product and self._menu_already_sent(context):
+            # Still unclear after the menu: hand over to a person instead of repeating ourselves.
+            reply = (
+                "Thanks for sharing! I'll ask our wellness team to help you personally. "
+                "They'll reply right here shortly."
+            )
+            decision = self._decision(
+                context=context,
+                intent="general",
+                user_intent="needs_human",
+                selected_product=None,
+                reply=reply,
+                purchase_intent=purchase_intent,
+                confidence=0.8,
+                source=source,
+            )
+            return decision.model_copy(update={"escalation_reason": "Customer needs a person: unclear after menu."})
+
         if not selected_product:
             reply = self._unclear_reply(lowered)
             schema_intent = intent if intent in {"shipping_question", "refund_question"} else "general"
@@ -259,13 +277,26 @@ class OpenAIDecisionClient:
         return "product_question"
 
     @staticmethod
+    def _menu_already_sent(context: AIRequestContext) -> bool:
+        return any(
+            item.direction == "outbound" and "Reply with 1-4" in (item.body or "") for item in context.thread_history[-6:]
+        )
+
+    @staticmethod
     def _unclear_reply(text: str) -> str:
-        if text in {"hello", "hi", "hey", "hii", "helo"}:
+        if text.strip(" !.") in {"hello", "hi", "hey", "hii", "helo", "hlo", "namaste"}:
             return (
                 "Hi - tell me your main concern in one line: sleep/stress, periods/PMS, PCOS, "
                 "or 35+ hormonal changes?"
             )
-        return "I don't want to guess. Can you tell me your main concern in one line?"
+        return (
+            "Happy to help you choose 🌿 Our formulas:\n"
+            "1. Mind Calm: stress, overthinking, sleep\n"
+            "2. Women Balance: PMS, mood, daily energy\n"
+            "3. PCOS/PCOD Support: irregular cycles, hormonal balance\n"
+            "4. Perimenopause Support: 35+ transition, sleep, mood\n"
+            "Reply with 1-4, or tell me your main concern."
+        )
 
     @staticmethod
     def _public_reply(selected_product: str | None) -> str:
