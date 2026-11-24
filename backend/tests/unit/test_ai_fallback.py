@@ -127,3 +127,43 @@ async def test_openai_error_falls_back_to_curated_reply_instead_of_silence(monke
     )
     assert ai_input["mode"] == "fallback_after_openai_error"
     assert decision.send_decision == SendDecision.send and "Mind Calm" in decision.private_dm
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "text,product",
+    [
+        ("i want strees supplement", "Mind Calm"),
+        ("bahut tension rehti hai", "Mind Calm"),
+        ("1", "Mind Calm"),
+        ("3", "PCOS Support"),
+        ("something for my mood swings", "Women Balance"),
+    ],
+)
+async def test_whatsapp_typos_hinglish_and_menu_numbers_route_to_a_product(text: str, product: str):
+    client = OpenAIDecisionClient()
+    client.settings = client.settings.model_copy(update={"openai_api_key": None})
+    decision, _, _ = await client.generate_decision(AIRequestContext(text=text, channel="whatsapp_message"))
+    assert decision.selected_product == product
+    assert decision.send_decision == SendDecision.send
+
+
+@pytest.mark.asyncio
+async def test_unclear_message_gets_menu_then_human_handoff_not_a_loop():
+    from app.schemas.ai import ThreadMessage
+
+    client = OpenAIDecisionClient()
+    client.settings = client.settings.model_copy(update={"openai_api_key": None})
+    first, _, _ = await client.generate_decision(
+        AIRequestContext(text="i want some prodcut for me which best suits me", channel="whatsapp_message")
+    )
+    assert "Reply with 1-4" in first.private_dm and first.send_decision == SendDecision.send
+    second, _, _ = await client.generate_decision(
+        AIRequestContext(
+            text="not sure",
+            channel="whatsapp_message",
+            thread_history=[ThreadMessage(direction="outbound", body=first.private_dm, channel="whatsapp")],
+        )
+    )
+    assert "wellness team" in second.private_dm and "Reply with 1-4" not in second.private_dm
+    assert second.escalation_reason
