@@ -9,6 +9,7 @@ import type {
   ContentGenerateResult,
   ConversationItem,
   ConversationMessage,
+  LiveAgentState,
   DashboardMetrics,
   FunnelSummary,
   Giveaway,
@@ -221,6 +222,10 @@ export const api = {
     postJson<CampaignTestResult>("/campaigns/test", payload),
   conversations: () => getJson<ConversationItem[]>("/conversations", []),
   conversationMessages: (id: string) => getJson<ConversationMessage[]>(`/conversations/${id}/messages`, []),
+  replyToConversation: (id: string, text: string) =>
+    postJson<{ ok: boolean; live_agent: LiveAgentState }>(`/conversations/${id}/reply`, { text }),
+  setConversationHandover: (id: string, active: boolean) =>
+    postJson<{ ok: boolean; live_agent: LiveAgentState }>(`/conversations/${id}/handover`, { active }),
   knowledge: () => getJson<KnowledgeDocument[]>("/knowledge", []),
   createKnowledge: (payload: KnowledgeCreate) => postJson<KnowledgeDocument>("/knowledge", payload),
   funnels: () => getJson<FunnelSummary[]>("/funnels", []),

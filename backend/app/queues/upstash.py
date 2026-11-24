@@ -32,7 +32,9 @@ def get_upstash_client():
 
 def clear_upstash_client_cache() -> None:
     global _initialized
-    get_upstash_client.cache_clear()
+    cache_clear = getattr(get_upstash_client, "cache_clear", None)
+    if cache_clear is not None:
+        cache_clear()
     _initialized = False
 
 

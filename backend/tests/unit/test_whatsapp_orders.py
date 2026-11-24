@@ -135,7 +135,8 @@ async def test_order_confirmation_is_sent_even_at_night(session, provider, servi
 async def test_cod_order_asks_for_confirmation_with_buttons(session, provider, service):
     await service.handle_event(session, order_event(payment="cod"), now=DAYTIME)
     sent = provider.templates[0]
-    assert sent["name"] == "rootellect_cod_order_confirm_v2"
+    assert sent["name"] == "rootellect_cod_order_confirm_v3"
+    assert sent.get("header") is None
     assert sent["buttons"] == [
         {"index": 0, "sub_type": "quick_reply", "value": "COD_CONFIRM:RT-1001"},
         {"index": 1, "sub_type": "quick_reply", "value": "COD_CANCEL:RT-1001"},
@@ -181,8 +182,10 @@ async def test_delivery_schedules_follow_ups_and_respects_marketing_consent(sess
     assert rows["reorder_reminder"].button_params == [{"index": 0, "sub_type": "url", "value": "women-balance"}]
     assert rows["usage_guide"].body_params == ["Ananya", "Mind Calm and Women Balance"]
 
-    later = DAYTIME + timedelta(days=40)
-    await service.dispatch_due(session, now=later)
+    # Dispatch each follow-up when it falls due (a real scheduler runs every few minutes).
+    for kind in ("usage_guide", "review_request", "reorder_reminder"):
+        due = rows[kind].scheduled_for if rows[kind].scheduled_for.tzinfo else rows[kind].scheduled_for.replace(tzinfo=UTC)
+        await service.dispatch_due(session, now=due + timedelta(minutes=5))
     rows = {r.kind: r for r in (await session.execute(select(WhatsAppNotification))).scalars()}
     assert (rows["usage_guide"].status, rows["usage_guide"].error) == ("skipped", "no_marketing_opt_in")
     assert rows["review_request"].status == "sent"
@@ -195,8 +198,9 @@ async def test_reorder_sent_when_customer_opted_in(session, provider, service):
     contact = await session.scalar(select(WhatsAppContact))
     service.set_marketing_opt_in(contact, "test")
     await service.handle_event(session, order_event("shipment.updated", shipment={"status": "delivered"}), now=DAYTIME)
-    await service.dispatch_due(session, now=DAYTIME + timedelta(days=40))
     row = await session.scalar(select(WhatsAppNotification).where(WhatsAppNotification.kind == "reorder_reminder"))
+    due = row.scheduled_for if row.scheduled_for.tzinfo else row.scheduled_for.replace(tzinfo=UTC)
+    await service.dispatch_due(session, now=due + timedelta(minutes=5))
     assert row.status == "sent"
 
 
@@ -428,6 +432,10 @@ async def test_reorder_and_cart_use_the_product_photo(session, provider, service
 
 
 def test_every_template_has_a_jpeg_header_on_rootellect_com():
+    # Headerless by design: COD v3 (re-submitted as plain Utility) and the internal team alert.
+    headerless = {"cod_order_confirm", "team_alert"}
     for template in TEMPLATES.values():
+        if template.kind in headerless:
+            continue
         assert template.header_image and template.header_image.startswith("https://www.rootellect.com/whatsapp/")
         assert template.header_image.endswith(".jpg") and template.legacy_name

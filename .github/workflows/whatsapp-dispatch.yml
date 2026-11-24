@@ -1,0 +1,33 @@
+name: WhatsApp scheduled messages
+
+# Sends due scheduled WhatsApp messages (cart reminders, usage tips, review and
+# reorder reminders) every 10 minutes. Needs two repository settings:
+#   secrets.MARKETINGAI_CRON_SECRET  - same value as CRON_SECRET on the backend
+#   vars.MARKETINGAI_BACKEND_URL     - e.g. https://marketing-ai-gymu.vercel.app
+# Without them the job does nothing (the backend also dispatches on incoming webhooks).
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Trigger dispatch
+        env:
+          CRON_SECRET: ${{ secrets.MARKETINGAI_CRON_SECRET }}
+          BACKEND_URL: ${{ vars.MARKETINGAI_BACKEND_URL }}
+        run: |
+          if [ -z "$CRON_SECRET" ] || [ -z "$BACKEND_URL" ]; then
+            echo "MARKETINGAI_CRON_SECRET or MARKETINGAI_BACKEND_URL not set; skipping."
+            exit 0
+          fi
+          curl --fail-with-body -sS -m 60 -X POST \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "${BACKEND_URL%/}/webhooks/cron/whatsapp-dispatch"

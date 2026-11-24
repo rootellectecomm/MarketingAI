@@ -88,6 +88,29 @@ class Settings(BaseSettings):
     whatsapp_quiet_hours_start: int = 21
     whatsapp_quiet_hours_end: int = 9
     cron_secret: str | None = None
+    # Scheduled messages this late are dropped instead of sent (a cart reminder
+    # hours after the visit reads as spam). Checkout reminders use the shorter limit.
+    whatsapp_stale_after_hours: int = 6
+    whatsapp_checkout_stale_after_minutes: int = 60
+    # Follow-ups (tips, reviews, reorders, cart reminders) are never sent for
+    # TEST-* orders created by scripts/send_test_order_events.py.
+    whatsapp_skip_test_order_followups: bool = True
+    whatsapp_test_order_prefix: str = "TEST-"
+    # Run due scheduled sends whenever a WhatsApp webhook arrives (at most this often).
+    # Keeps reminders flowing on Vercel even when no external cron is configured.
+    whatsapp_opportunistic_dispatch_minutes: int = 10
+
+    # Live-agent handover (WhatsApp). Team phones: comma-separated, with country code.
+    live_agent_enabled: bool = True
+    live_agent_team_phones: str | None = None
+    live_agent_alert_template: str | None = "rootellect_team_alert_v1"
+    live_agent_hours_start: int = 10
+    live_agent_hours_end: int = 19
+    # Python weekday numbers: 0 = Monday ... 6 = Sunday.
+    live_agent_days: str = "0,1,2,3,4,5"
+    live_agent_idle_hours: int = 24
+    live_agent_realert_minutes: int = 60
+    frontend_url: str | None = "https://marketing-ai-gamma-virid.vercel.app"
 
     rate_limit_requests: int = 120
     rate_limit_window_seconds: int = 60

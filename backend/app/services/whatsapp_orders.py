@@ -542,8 +542,22 @@ class WhatsAppOrderService:
         return counts
 
     async def _skip_reason(
-        self, session: AsyncSession, row: WhatsAppNotification, template: WhatsAppTemplate | None
+        self,
+        session: AsyncSession,
+        row: WhatsAppNotification,
+        template: WhatsAppTemplate | None,
+        now: datetime | None = None,
     ) -> str | None:
+        settings = self.settings
+        now = now or datetime.now(UTC)
+        immediate = bool(template and template.immediate)
+        if (
+            settings.whatsapp_skip_test_order_followups
+            and not immediate
+            and row.order_external_id
+            and row.order_external_id.upper().startswith(settings.whatsapp_test_order_prefix.upper())
+        ):
+            return "test_order"
         contact = await self.get_contact(session, row.phone)
         if contact is None:
             return "no_contact"
@@ -565,11 +579,18 @@ class WhatsAppOrderService:
             order = await session.scalar(select(Order).where(Order.external_order_id == row.order_external_id))
             if order is not None and order.status in {"cancelled", "returned"}:
                 return f"order_{order.status}"
+        due = _aware(row.scheduled_for)
+        if due is not None and not immediate:
+            late = now - due
+            if row.kind == "checkout_reminder" and late > timedelta(minutes=settings.whatsapp_checkout_stale_after_minutes):
+                return "stale_too_late"
+            if late > timedelta(hours=settings.whatsapp_stale_after_hours):
+                return "stale_too_late"
         return None
 
     async def _send(self, session: AsyncSession, row: WhatsAppNotification, provider, now: datetime) -> bool:
         template = _template_for(row)
-        reason = await self._skip_reason(session, row, template)
+        reason = await self._skip_reason(session, row, template, now)
         if reason:
             row.status = "skipped"
             row.error = reason
