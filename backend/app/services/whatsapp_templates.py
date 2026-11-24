@@ -177,6 +177,21 @@ TEMPLATES: dict[str, WhatsAppTemplate] = {
             buttons=(TemplateButton("URL", "Reorder", url_prefix=f"{SITE}/products/", example_suffix="mind-calm"),),
         ),
         WhatsAppTemplate(
+            kind="welcome_offer",
+            name="rootellect_welcome_offer_v1",
+            category="MARKETING",
+            consent="marketing",
+            body=(
+                "Hi {{1}}, welcome to Rootellect 🌿\n\n"
+                "Thank you for joining us. Enjoy {{2}}% off your first order with code *{{3}}*, valid until {{4}}.\n\n"
+                "Our clean-label, vegan formulations are designed to support everyday balance. "
+                "Not sure where to start? Reply here and we'll help you choose."
+            ),
+            body_examples=("Ananya", "10", "WELCOMEAB12CD34", "8 Dec 2026"),
+            footer=STOP_FOOTER,
+            buttons=(TemplateButton("URL", "Shop now", url_prefix=f"{SITE}/shop", dynamic=False),),
+        ),
+        WhatsAppTemplate(
             kind="checkout_reminder",
             name="rootellect_checkout_reminder_v1",
             category="MARKETING",

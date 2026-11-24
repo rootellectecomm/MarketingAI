@@ -26,6 +26,7 @@ class CampaignMatcher:
         media_id: str | None = None,
         media_permalink: str | None = None,
         platform: str = "instagram",
+        require_media_target: bool = False,
     ) -> list[Campaign]:
         normalized = normalize_comment_text(text).lower()
         if not normalized:
@@ -36,6 +37,8 @@ class CampaignMatcher:
         matched: list[Campaign] = []
         for campaign in campaigns:
             keyword_match = bool(self.matched_keyword(campaign, normalized)) or not campaign.keyword_triggers
+            if require_media_target and not self.has_media_target(campaign):
+                continue
             if (
                 keyword_match
                 and self._matches_platform(campaign, platform)
@@ -58,6 +61,15 @@ class CampaignMatcher:
         campaign_platform = (campaign.platform or "both").lower()
         platform = platform.lower()
         return campaign_platform == "both" or campaign_platform == platform
+
+    @staticmethod
+    def has_media_target(campaign: Campaign) -> bool:
+        metadata = campaign.metadata_json or {}
+        return bool(
+            str(campaign.post_id or "").strip()
+            or any(metadata.get("target_media_ids") or [])
+            or any(metadata.get("target_media_shortcodes") or [])
+        )
 
     @staticmethod
     def _matches_media_target(campaign: Campaign, media_id: str | None, media_permalink: str | None) -> bool:

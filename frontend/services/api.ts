@@ -22,7 +22,8 @@ import type {
   MetaConnectUrl,
   MetaSyncResult,
   ProviderStatus,
-  TokenResponse
+  TokenResponse,
+  InstagramPostsResponse,
 } from "@/types/api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
@@ -233,6 +234,9 @@ export const api = {
     postJson<MetaSyncResult>(
       `/meta/sync/comments?media_limit=${params.media_limit}&comments_per_media=${params.comments_per_media}`
     ),
+  instagramPosts: (limit = 24) => fetchJson<InstagramPostsResponse>(`/instagram/posts?limit=${limit}`),
+  setPostAutomation: (payload: { media_id: string; permalink: string; campaign_id: string; enabled: boolean }) =>
+    postJson<{ ok: boolean; automated: boolean; campaign_active: boolean }>("/instagram/posts/automation", payload),
   giveaways: () => getJson<Giveaway[]>("/giveaways", USE_MOCK_DATA ? giveaways : []),
   createGiveaway: (payload: GiveawayCreate) => postJson<Giveaway>("/giveaways", payload),
   updateGiveaway: (id: string, payload: Partial<GiveawayCreate>) => patchJson<Giveaway>(`/giveaways/${id}`, payload),

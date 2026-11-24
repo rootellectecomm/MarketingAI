@@ -332,3 +332,46 @@ def test_rootellect_paths_skip_dashboard_auth_but_not_api():
     assert is_public_webhook_path("/webhooks/rootellect/events")
     assert is_public_webhook_path("/webhooks/cron/whatsapp-dispatch")
     assert not is_public_webhook_path("/api/v1/whatsapp/notifications")
+
+
+def welcome_event(*, opt_in=True, code="WELCOMEAB12CD34"):
+    return {
+        "type": "customer.welcome",
+        "event_id": "customer.welcome:RT-0042",
+        "customer": {
+            "customer_code": "RT-0042",
+            "first_name": "Meera",
+            "phone": "+919812345678",
+            "email": None,
+            "whatsapp_marketing_opt_in": opt_in,
+            "voucher": {"code": code, "percent_off": 10, "expires_on": "8 Dec 2026"},
+        },
+    }
+
+
+async def test_welcome_sends_voucher_once_to_opted_in_customer(session, provider, service):
+    result = await service.handle_event(session, welcome_event(), now=DAYTIME)
+    assert result.sent == ["welcome:RT-0042"]
+    sent = provider.templates[0]
+    assert sent["name"] == "rootellect_welcome_offer_v1"
+    assert sent["phone"] == "919812345678"
+    assert sent["body"] == ["Meera", "10", "WELCOMEAB12CD34", "8 Dec 2026"]
+    contact = await session.scalar(select(WhatsAppContact).where(WhatsAppContact.phone == "919812345678"))
+    assert contact.marketing_opt_in and contact.marketing_opt_in_source == "rootellect_signup"
+
+    again = await service.handle_event(session, welcome_event(), now=DAYTIME)
+    assert again.skipped == ["duplicate:welcome:RT-0042"]
+    assert len(provider.templates) == 1
+
+
+async def test_welcome_waits_for_send_window_and_needs_consent(session, provider, service):
+    night = await service.handle_event(session, welcome_event(), now=NIGHT)
+    assert night.queued == ["welcome:RT-0042"] and night.sent == []
+    assert provider.templates == []
+
+    event = welcome_event(opt_in=False)
+    event["customer"] = {**event["customer"], "customer_code": "RT-0043", "phone": "+919800000001"}
+    no_consent = await service.handle_event(session, event, now=DAYTIME)
+    assert no_consent.sent == []
+    row = await session.scalar(select(WhatsAppNotification).where(WhatsAppNotification.idempotency_key == "welcome:RT-0043"))
+    assert row.status == "skipped" and row.error == "no_marketing_opt_in"

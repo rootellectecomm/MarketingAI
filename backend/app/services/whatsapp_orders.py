@@ -288,6 +288,11 @@ class WhatsAppOrderService:
             await self._handle_abandoned(session, event.get("checkout") or {}, now, result)
             return result
 
+        if event_type == "customer.welcome":
+            await self._handle_welcome(session, event.get("customer") or {}, now, result)
+            await self._dispatch_immediate(session, result, now)
+            return result
+
         order_data = event.get("order") or {}
         number = str(order_data.get("order_number") or "").strip()
         if not number:
@@ -448,6 +453,35 @@ class WhatsAppOrderService:
             body_params=[_first_name(contact.first_name), _product_label(items)],
             scheduled_for=self.next_send_time(now + timedelta(hours=1)),
             metadata={"cart_key": cart_key, "abandoned_at": now.isoformat()},
+        )
+
+    async def _handle_welcome(self, session: AsyncSession, customer: dict, now: datetime, result: EventResult) -> None:
+        """New rootellect.com customer who opted in at sign-in: welcome message with their first-order voucher."""
+        customer_code = str(customer.get("customer_code") or "").strip()
+        phone = normalize_phone(customer.get("phone"))
+        voucher = customer.get("voucher") or {}
+        code = str(voucher.get("code") or "").strip()
+        if not customer_code or not phone:
+            raise EventValidationError("customer.customer_code and a valid customer.phone are required")
+        contact = await self.upsert_contact(
+            session,
+            phone,
+            first_name=customer.get("first_name"),
+            email=customer.get("email"),
+            transactional_source="rootellect_signup",
+        )
+        if customer.get("whatsapp_marketing_opt_in") is True and not contact.marketing_opt_in:
+            self.set_marketing_opt_in(contact, "rootellect_signup", now)
+        if not code:
+            result.skipped.append("welcome_without_voucher")
+            return
+        percent = str(voucher.get("percent_off") or 10)
+        expires = str(voucher.get("expires_on") or "").strip() or "the next 14 days"
+        await self._queue_and_record(
+            session, result, key=f"welcome:{customer_code}", kind="welcome_offer", phone=phone,
+            body_params=[_first_name(contact.first_name), percent, code, expires],
+            scheduled_for=self.next_send_time(now),
+            metadata={"customer_code": customer_code, "voucher_code": code},
         )
 
     # ---------------------------------------------------------------- dispatch

@@ -18,8 +18,8 @@ from app.services.providers.base import SocialProvider
 
 logger = structlog.get_logger(__name__)
 
-ROOTELLECT_WHATSAPP_NUMBER = "918679508311"
-ROOTELLECT_WHATSAPP_LINK = "https://wa.me/918679508311"
+ROOTELLECT_WHATSAPP_NUMBER = "918679008311"
+ROOTELLECT_WHATSAPP_LINK = "https://wa.me/918679008311"
 
 
 @dataclass(slots=True)

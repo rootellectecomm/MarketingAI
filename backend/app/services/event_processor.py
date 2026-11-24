@@ -128,12 +128,17 @@ class EventProcessor:
             )
 
         platform = CampaignConversionService.platform_for_event(event)
+        selected_posts_only = (
+            normalized.event_type == EventType.instagram_comment
+            and self.ai.settings.instagram_comment_scope != "all_posts"
+        )
         matched_campaigns = await self.campaigns.match_active(
             session,
             text,
             media_id=normalized.media_id,
             media_permalink=normalized.payload.get("media_permalink") or normalized.payload.get("permalink"),
             platform=platform,
+            require_media_target=selected_posts_only,
         )
         lead = await self._upsert_lead(session, normalized)
         if normalized.event_type == EventType.whatsapp_message and normalized.actor_id:
@@ -167,6 +172,14 @@ class EventProcessor:
             if handled:
                 event.status = EventStatus.processed
                 return
+
+        if selected_posts_only and not matched_campaigns:
+            # Comment on a post you haven't selected for automation: keep it in
+            # the inbox, send nothing (no public reply, no DM).
+            event.status = EventStatus.processed
+            event.payload = {**(event.payload or {}), "automation_skipped": "post_not_selected"}
+            logger.info("instagram_comment_not_automated", event_id=event.id, media_id=normalized.media_id)
+            return
 
         thread_history = await self._load_thread_history(session, conversation.id)
         moderation = self.moderation.evaluate(text)
