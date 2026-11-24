@@ -29,9 +29,12 @@ class FakeProvider:
         self.texts: list[tuple[str, str]] = []
         self.next_results: list[ProviderActionResult] = []
 
-    async def send_template(self, phone, template_name, language, body_params=None, button_params=None):
+    async def send_template(self, phone, template_name, language, body_params=None, button_params=None, header_image=None):
         self.templates.append(
-            {"phone": phone, "name": template_name, "language": language, "body": body_params, "buttons": button_params}
+            {
+                "phone": phone, "name": template_name, "language": language, "body": body_params,
+                "buttons": button_params, "header": header_image,
+            }
         )
         if self.next_results:
             return self.next_results.pop(0)
@@ -104,7 +107,7 @@ def test_templates_follow_meta_body_rules():
         body = template.body.strip()
         assert not body.startswith("{{") and not body.endswith("}}"), template.name
         assert body.count("{{") == len(template.body_examples), template.name
-        payload = meta_template_payload(template, "en")
+        payload = meta_template_payload(template, "en", header_handle="4::aGVhZGVy")
         assert payload["category"] in {"UTILITY", "MARKETING"}
         for word in ("cure", "treat", "fix ", "reverse"):
             assert word not in body.lower(), (template.name, word)
@@ -114,7 +117,7 @@ async def test_prepaid_order_sends_confirmation_once(session, provider, service)
     result = await service.handle_event(session, order_event(), now=DAYTIME)
     assert result.sent == ["RT-1001:order_confirmed"]
     sent = provider.templates[0]
-    assert sent["name"] == "rootellect_order_confirmed_v1"
+    assert sent["name"] == "rootellect_order_confirmed_v2"
     assert sent["phone"] == "919876543210"
     assert sent["body"] == ["Ananya", "RT-1001", "1,299"]
     assert sent["buttons"] == [{"index": 0, "sub_type": "url", "value": "RT-1001"}]
@@ -132,7 +135,7 @@ async def test_order_confirmation_is_sent_even_at_night(session, provider, servi
 async def test_cod_order_asks_for_confirmation_with_buttons(session, provider, service):
     await service.handle_event(session, order_event(payment="cod"), now=DAYTIME)
     sent = provider.templates[0]
-    assert sent["name"] == "rootellect_cod_order_confirm_v1"
+    assert sent["name"] == "rootellect_cod_order_confirm_v2"
     assert sent["buttons"] == [
         {"index": 0, "sub_type": "quick_reply", "value": "COD_CONFIRM:RT-1001"},
         {"index": 1, "sub_type": "quick_reply", "value": "COD_CANCEL:RT-1001"},
@@ -280,7 +283,7 @@ async def test_failed_send_retries_then_gives_up(session, provider, service):
 
 
 async def test_permanent_meta_error_fails_immediately(session, provider, service):
-    provider.next_results = [ProviderActionResult(ok=False, error="bad template", response={"error": {"code": 132001}})]
+    provider.next_results = [ProviderActionResult(ok=False, error="undeliverable", response={"error": {"code": 131026}})]
     await service.handle_event(session, order_event(), now=DAYTIME)
     row = await session.scalar(select(WhatsAppNotification))
     assert row.status == "failed" and row.attempts == 1
@@ -353,7 +356,7 @@ async def test_welcome_sends_voucher_once_to_opted_in_customer(session, provider
     result = await service.handle_event(session, welcome_event(), now=DAYTIME)
     assert result.sent == ["welcome:RT-0042"]
     sent = provider.templates[0]
-    assert sent["name"] == "rootellect_welcome_offer_v1"
+    assert sent["name"] == "rootellect_welcome_offer_v2"
     assert sent["phone"] == "919812345678"
     assert sent["body"] == ["Meera", "10", "WELCOMEAB12CD34", "8 Dec 2026"]
     contact = await session.scalar(select(WhatsAppContact).where(WhatsAppContact.phone == "919812345678"))
@@ -375,3 +378,56 @@ async def test_welcome_waits_for_send_window_and_needs_consent(session, provider
     assert no_consent.sent == []
     row = await session.scalar(select(WhatsAppNotification).where(WhatsAppNotification.idempotency_key == "welcome:RT-0043"))
     assert row.status == "skipped" and row.error == "no_marketing_opt_in"
+
+
+async def test_order_confirmation_has_logo_header(session, provider, service):
+    await service.handle_event(session, order_event(), now=DAYTIME)
+    assert provider.templates[0]["header"] == "https://www.rootellect.com/whatsapp/order-confirmed.jpg"
+
+
+async def test_unapproved_v2_falls_back_to_approved_v1_without_header(session, provider, service):
+    provider.next_results = [
+        ProviderActionResult(ok=False, error="template not approved", response={"error": {"code": 132001}})
+    ]
+    result = await service.handle_event(session, order_event(), now=DAYTIME)
+    assert result.sent == ["RT-1001:order_confirmed"]
+    first, second = provider.templates
+    assert first["name"] == "rootellect_order_confirmed_v2" and first["header"]
+    assert second["name"] == "rootellect_order_confirmed_v1" and second["header"] is None
+    row = await session.scalar(select(WhatsAppNotification))
+    assert row.status == "sent" and row.metadata_json["sent_with_template"] == "rootellect_order_confirmed_v1"
+
+
+async def test_reorder_and_cart_use_the_product_photo(session, provider, service):
+    await service.handle_event(session, order_event(), now=DAYTIME)
+    await service.handle_event(
+        session,
+        order_event("shipment.updated", shipment={"status": "delivered", "delivered_at": DAYTIME.isoformat()}),
+        now=DAYTIME,
+    )
+    reorder = await session.scalar(
+        select(WhatsAppNotification).where(WhatsAppNotification.idempotency_key == "RT-1001:reorder_reminder")
+    )
+    # Women Balance runs out first (30 days vs 60)
+    assert reorder.metadata_json["header_image"].endswith("/product-women-balance.jpg")
+
+    await service.handle_event(
+        session,
+        {
+            "type": "checkout.abandoned",
+            "checkout": {
+                "cart_key": "c1",
+                "customer": {"first_name": "Ananya", "phone": "+919876543210"},
+                "items": [{"title": "PCOS/PCOD Support", "quantity": 1}],
+            },
+        },
+        now=DAYTIME,
+    )
+    cart = await session.scalar(select(WhatsAppNotification).where(WhatsAppNotification.idempotency_key == "cart:c1"))
+    assert cart.metadata_json["header_image"].endswith("/product-balance-pcos-pcod-support.jpg")
+
+
+def test_every_template_has_a_jpeg_header_on_rootellect_com():
+    for template in TEMPLATES.values():
+        assert template.header_image and template.header_image.startswith("https://www.rootellect.com/whatsapp/")
+        assert template.header_image.endswith(".jpg") and template.legacy_name

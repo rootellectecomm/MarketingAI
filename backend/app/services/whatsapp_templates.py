@@ -44,9 +44,35 @@ class WhatsAppTemplate:
     buttons: tuple[TemplateButton, ...] = field(default_factory=tuple)
     # Sent the moment the triggering event arrives, ignoring quiet hours.
     immediate: bool = False
+    # Image header: default image (also the example Meta reviews). Products
+    # templates swap in the customer's product image at send time.
+    header_image: str | None = None
+    # Previous approved version without the header. Used as a fallback while
+    # Meta is still reviewing this version, so no customer message is lost.
+    legacy_name: str | None = None
 
 
 SITE = "https://www.rootellect.com"
+IMG = f"{SITE}/whatsapp"
+PRODUCT_IMAGE_SLUGS = ("mind-calm", "women-balance", "balance-pcos-pcod-support", "perimenopause-support")
+
+
+def product_image(slug_or_title: str | None) -> str | None:
+    """Header image for a product slug or title; ``None`` when no product image fits."""
+    text = (slug_or_title or "").lower()
+    if not text:
+        return None
+    if "pcos" in text or "pcod" in text:
+        slug = "balance-pcos-pcod-support"
+    elif "peri" in text or "menopause" in text:
+        slug = "perimenopause-support"
+    elif "mind" in text or "calm" in text:
+        slug = "mind-calm"
+    elif "women" in text and "balance" in text:
+        slug = "women-balance"
+    else:
+        return None
+    return f"{IMG}/product-{slug}.jpg"
 STOP_FOOTER = "Reply STOP to opt out of WhatsApp updates"
 
 TEMPLATES: dict[str, WhatsAppTemplate] = {
@@ -54,7 +80,9 @@ TEMPLATES: dict[str, WhatsAppTemplate] = {
     for template in (
         WhatsAppTemplate(
             kind="order_confirmed",
-            name="rootellect_order_confirmed_v1",
+            name="rootellect_order_confirmed_v2",
+            legacy_name="rootellect_order_confirmed_v1",
+            header_image=f"{IMG}/order-confirmed.jpg",
             category="UTILITY",
             consent="transactional",
             immediate=True,
@@ -69,14 +97,16 @@ TEMPLATES: dict[str, WhatsAppTemplate] = {
         ),
         WhatsAppTemplate(
             kind="cod_order_confirm",
-            name="rootellect_cod_order_confirm_v1",
+            name="rootellect_cod_order_confirm_v2",
+            legacy_name="rootellect_cod_order_confirm_v1",
+            header_image=f"{IMG}/cod-confirm.jpg",
             category="UTILITY",
             consent="transactional",
             immediate=True,
             body=(
-                "Hi {{1}}, thank you for your Rootellect order.\n\n"
-                "Order *{{2}}* is placed as Cash on Delivery. Amount to pay on delivery: ₹{{3}}.\n\n"
-                "Please tap *Confirm order* below so we can dispatch it. If you placed it by mistake, tap *Cancel order*."
+                "Hi {{1}}, your Rootellect order *{{2}}* has been placed with Cash on Delivery.\n\n"
+                "Amount payable on delivery: ₹{{3}}.\n\n"
+                "Please confirm the order using the button below so we can dispatch it. To cancel it, tap *Cancel order*."
             ),
             body_examples=("Ananya", "RT-10482", "1,299"),
             footer=STOP_FOOTER,
@@ -87,7 +117,9 @@ TEMPLATES: dict[str, WhatsAppTemplate] = {
         ),
         WhatsAppTemplate(
             kind="order_shipped",
-            name="rootellect_order_shipped_v1",
+            name="rootellect_order_shipped_v2",
+            legacy_name="rootellect_order_shipped_v1",
+            header_image=f"{IMG}/order-shipped.jpg",
             category="UTILITY",
             consent="transactional",
             body=(
@@ -100,7 +132,9 @@ TEMPLATES: dict[str, WhatsAppTemplate] = {
         ),
         WhatsAppTemplate(
             kind="out_for_delivery",
-            name="rootellect_out_for_delivery_v1",
+            name="rootellect_out_for_delivery_v2",
+            legacy_name="rootellect_out_for_delivery_v1",
+            header_image=f"{IMG}/out-for-delivery.jpg",
             category="UTILITY",
             consent="transactional",
             body=(
@@ -112,7 +146,9 @@ TEMPLATES: dict[str, WhatsAppTemplate] = {
         ),
         WhatsAppTemplate(
             kind="order_delivered",
-            name="rootellect_order_delivered_v1",
+            name="rootellect_order_delivered_v2",
+            legacy_name="rootellect_order_delivered_v1",
+            header_image=f"{IMG}/order-delivered.jpg",
             category="UTILITY",
             consent="transactional",
             body=(
@@ -124,7 +160,9 @@ TEMPLATES: dict[str, WhatsAppTemplate] = {
         ),
         WhatsAppTemplate(
             kind="delivery_failed",
-            name="rootellect_delivery_attempt_failed_v1",
+            name="rootellect_delivery_attempt_failed_v2",
+            legacy_name="rootellect_delivery_attempt_failed_v1",
+            header_image=f"{IMG}/delivery-update.jpg",
             category="UTILITY",
             consent="transactional",
             body=(
@@ -136,7 +174,9 @@ TEMPLATES: dict[str, WhatsAppTemplate] = {
         ),
         WhatsAppTemplate(
             kind="usage_guide",
-            name="rootellect_usage_guide_v1",
+            name="rootellect_usage_guide_v2",
+            legacy_name="rootellect_usage_guide_v1",
+            header_image=f"{IMG}/product-mind-calm.jpg",
             # Meta re-classified this as Marketing on review (2026-10-31), so it
             # may only go to customers who opted in to marketing messages.
             category="MARKETING",
@@ -152,7 +192,9 @@ TEMPLATES: dict[str, WhatsAppTemplate] = {
         ),
         WhatsAppTemplate(
             kind="review_request",
-            name="rootellect_review_request_v1",
+            name="rootellect_review_request_v2",
+            legacy_name="rootellect_review_request_v1",
+            header_image=f"{IMG}/review-request.jpg",
             category="UTILITY",
             consent="transactional",
             body=(
@@ -165,7 +207,9 @@ TEMPLATES: dict[str, WhatsAppTemplate] = {
         ),
         WhatsAppTemplate(
             kind="reorder_reminder",
-            name="rootellect_reorder_reminder_v1",
+            name="rootellect_reorder_reminder_v2",
+            legacy_name="rootellect_reorder_reminder_v1",
+            header_image=f"{IMG}/product-mind-calm.jpg",
             category="MARKETING",
             consent="marketing",
             body=(
@@ -178,7 +222,9 @@ TEMPLATES: dict[str, WhatsAppTemplate] = {
         ),
         WhatsAppTemplate(
             kind="welcome_offer",
-            name="rootellect_welcome_offer_v1",
+            name="rootellect_welcome_offer_v2",
+            legacy_name="rootellect_welcome_offer_v1",
+            header_image=f"{IMG}/welcome.jpg",
             category="MARKETING",
             consent="marketing",
             body=(
@@ -193,7 +239,9 @@ TEMPLATES: dict[str, WhatsAppTemplate] = {
         ),
         WhatsAppTemplate(
             kind="checkout_reminder",
-            name="rootellect_checkout_reminder_v1",
+            name="rootellect_checkout_reminder_v2",
+            legacy_name="rootellect_checkout_reminder_v1",
+            header_image=f"{IMG}/product-mind-calm.jpg",
             category="MARKETING",
             consent="marketing",
             body=(
@@ -212,9 +260,18 @@ def get_template(kind: str) -> WhatsAppTemplate:
     return TEMPLATES[kind]
 
 
-def meta_template_payload(template: WhatsAppTemplate, language: str) -> dict:
-    """Request body for POST /{WABA_ID}/message_templates."""
-    components: list[dict] = [
+def meta_template_payload(template: WhatsAppTemplate, language: str, header_handle: str | None = None) -> dict:
+    """Request body for POST /{WABA_ID}/message_templates.
+
+    ``header_handle`` is the Resumable Upload handle of the example header image
+    (required by Meta when the template has an image header).
+    """
+    components: list[dict] = []
+    if template.header_image:
+        if not header_handle:
+            raise ValueError(f"{template.name} has an image header: upload its example image first")
+        components.append({"type": "HEADER", "format": "IMAGE", "example": {"header_handle": [header_handle]}})
+    components += [
         {"type": "BODY", "text": template.body, "example": {"body_text": [list(template.body_examples)]}},
     ]
     if template.footer:

@@ -95,6 +95,7 @@ class MockMetaProvider:
         language: str,
         body_params: list[str] | None = None,
         button_params: list[dict] | None = None,
+        header_image: str | None = None,
     ) -> ProviderActionResult:
         return ProviderActionResult(
             ok=True,

@@ -10,8 +10,12 @@ from app.services.providers.base import ProviderActionResult
 from app.services.providers.mock import MockMetaProvider
 
 
-def build_template_components(body_params: list[str] | None, button_params: list[dict] | None) -> list[dict]:
+def build_template_components(
+    body_params: list[str] | None, button_params: list[dict] | None, header_image: str | None = None
+) -> list[dict]:
     components: list[dict] = []
+    if header_image:
+        components.append({"type": "header", "parameters": [{"type": "image", "image": {"link": header_image}}]})
     if body_params:
         components.append({"type": "body", "parameters": [{"type": "text", "text": str(value)} for value in body_params]})
     for button in button_params or []:
@@ -167,8 +171,9 @@ class WhatsAppCloudProvider(MockMetaProvider):
         language: str,
         body_params: list[str] | None = None,
         button_params: list[dict] | None = None,
+        header_image: str | None = None,
     ) -> ProviderActionResult:
-        """Send an approved template with body variables and button parameters.
+        """Send an approved template with body variables, button parameters and an optional image header.
 
         ``button_params`` items look like ``{"index": 0, "sub_type": "url", "value": "RT-1001"}``
         (dynamic URL suffix) or ``{"index": 1, "sub_type": "quick_reply", "value": "COD_CANCEL:RT-1001"}``
@@ -183,7 +188,7 @@ class WhatsAppCloudProvider(MockMetaProvider):
             "template": {
                 "name": template_name,
                 "language": {"code": language},
-                "components": build_template_components(body_params, button_params),
+                "components": build_template_components(body_params, button_params, header_image),
             },
         }
         url = f"https://graph.facebook.com/{self.settings.meta_graph_version}/{self.phone_number_id}/messages"
