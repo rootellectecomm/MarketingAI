@@ -33,6 +33,7 @@ from app.services.campaign_conversion import CampaignConversionService
 from app.services.campaign_matcher import CampaignMatcher
 from app.services.giveaway_processor import GiveawayProcessor
 from app.services.lead_scoring import LeadScoringService
+from app.services.live_agent import LiveAgentService, team_phones, wants_human
 from app.services.meta_oauth import get_active_page_access_token
 from app.services.normalization import detect_language, normalize_comment_text
 from app.services.phone_utils import extract_phone
@@ -54,6 +55,7 @@ class EventProcessor:
         self.campaigns = CampaignMatcher()
         self.campaign_conversion = CampaignConversionService()
         self.giveaways = GiveawayProcessor()
+        self.live_agent = LiveAgentService()
 
     async def process(
         self,
@@ -126,6 +128,11 @@ class EventProcessor:
                     metadata_json=normalized.payload,
                 )
             )
+
+        if normalized.event_type == EventType.whatsapp_message and self.live_agent.settings.live_agent_enabled:
+            if await self._route_live_agent(session, event, normalized, conversation, text):
+                event.status = EventStatus.processed
+                return
 
         platform = CampaignConversionService.platform_for_event(event)
         selected_posts_only = (
@@ -286,6 +293,17 @@ class EventProcessor:
         session.add(LeadScore(lead_id=lead.id, score_delta=score_delta, reason=decision.intent))
         await RetentionJobRunner().enroll_new_leads(session, lead)
 
+        if (
+            normalized.event_type == EventType.whatsapp_message
+            and self.live_agent.settings.live_agent_enabled
+            and decision.send_decision != SendDecision.suppress
+            and (decision.send_decision != SendDecision.send or not (decision.private_dm or "").strip())
+        ):
+            # The bot can't answer this one on its own: hand it to the team instead of going silent.
+            await self._hand_to_team_after_ai(session, event, normalized, conversation, decision, text)
+            event.status = EventStatus.processed
+            return
+
         page_access_token = await get_active_page_access_token(session)
         provider = (
             await get_whatsapp_provider(session)
@@ -325,6 +343,104 @@ class EventProcessor:
             )
         )
         event.status = EventStatus.processed
+
+    async def _live_agent_contact(self, session: AsyncSession, normalized: NormalizedEvent):
+        orders = WhatsAppOrderService()
+        phone = "".join(ch for ch in str(normalized.actor_id or "") if ch.isdigit())
+        if not phone:
+            return None
+        contact = await orders.get_contact(session, phone)
+        if contact is None:
+            contact = await orders.upsert_contact(session, phone)
+        return contact
+
+    async def _route_live_agent(
+        self,
+        session: AsyncSession,
+        event: SocialEvent,
+        normalized: NormalizedEvent,
+        conversation: Conversation,
+        text: str,
+    ) -> bool:
+        """Return True when the message is handled by the live-agent flow (no AI reply)."""
+        contact = await self._live_agent_contact(session, normalized)
+        if contact is None:
+            return False
+        if contact.phone in team_phones(self.live_agent.settings):
+            # A team member messaging the business number (often just to keep alerts free).
+            event.payload = {**(event.payload or {}), "automation_skipped": "team_member"}
+            return True
+
+        message = normalized.payload or {}
+        provider = await get_whatsapp_provider(session)
+        if message.get("type") == "order":
+            lines = self.live_agent.cart_lines(message)
+            summary = self.live_agent.cart_summary(lines)
+            session.add(
+                Message(
+                    conversation_id=conversation.id,
+                    provider_message_id=normalized.provider_message_id,
+                    direction="inbound",
+                    body=f"[Cart] {summary}",
+                    channel=normalized.event_type.value,
+                    metadata_json=message,
+                )
+            )
+            await self.live_agent.start(
+                session,
+                provider,
+                contact,
+                conversation,
+                reason="catalog_cart",
+                customer_text=f"Cart: {summary}",
+                customer_reply=self.live_agent.cart_reply(lines),
+            )
+            event.payload = {**(event.payload or {}), "live_agent": "catalog_cart"}
+            return True
+
+        if self.live_agent.is_active(contact):
+            await self.live_agent.note_customer_message(session, provider, contact, text)
+            event.payload = {**(event.payload or {}), "live_agent": "team_owns_chat"}
+            return True
+
+        if text and wants_human(text):
+            await self.live_agent.start(
+                session, provider, contact, conversation, reason="asked_for_person", customer_text=text
+            )
+            event.payload = {**(event.payload or {}), "live_agent": "asked_for_person"}
+            return True
+        return False
+
+    async def _hand_to_team_after_ai(
+        self,
+        session: AsyncSession,
+        event: SocialEvent,
+        normalized: NormalizedEvent,
+        conversation: Conversation,
+        decision,
+        text: str,
+    ) -> None:
+        contact = await self._live_agent_contact(session, normalized)
+        if contact is None:
+            return
+        provider = await get_whatsapp_provider(session)
+        medical = "medical_risk" in (decision.safety_flags or [])
+        notice = self.live_agent.customer_notice()
+        safe_note = (decision.private_dm or "").strip() if medical else ""
+        await self.live_agent.start(
+            session,
+            provider,
+            contact,
+            conversation,
+            reason="medical_question" if medical else "bot_could_not_answer",
+            customer_text=text,
+            customer_reply=f"{safe_note}\n\n{notice}" if safe_note else notice,
+        )
+        event.payload = {
+            **(event.payload or {}),
+            "live_agent": "handed_over",
+            "handover_reason": decision.escalation_reason,
+        }
 
     async def _apply_campaign_dm_followup(
         self,
@@ -503,3 +619,39 @@ async def process_webhook_payload(log_id: str, payload: dict, channel: str, *, i
                 log.error_message = str(exc)
             await session.commit()
             raise
+    if channel == "whatsapp":
+        await maybe_dispatch_due_notifications()
+
+
+_last_opportunistic_dispatch: datetime | None = None
+
+
+async def maybe_dispatch_due_notifications(now: datetime | None = None) -> dict | None:
+    """Send due scheduled WhatsApp messages, at most every few minutes per instance.
+
+    Vercel has no background worker, so incoming WhatsApp webhooks double as a
+    heartbeat. The external cron (/webhooks/cron/whatsapp-dispatch) still works too.
+    """
+    global _last_opportunistic_dispatch
+    from datetime import timedelta
+
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    minutes = settings.whatsapp_opportunistic_dispatch_minutes
+    if minutes <= 0 or not settings.whatsapp_order_notifications_enabled:
+        return None
+    now = now or datetime.now(UTC)
+    if _last_opportunistic_dispatch and now - _last_opportunistic_dispatch < timedelta(minutes=minutes):
+        return None
+    _last_opportunistic_dispatch = now
+    try:
+        async with get_sessionmaker()() as session:
+            counts = await WhatsAppOrderService().dispatch_due(session, limit=20, now=now)
+            await session.commit()
+        if counts.get("due"):
+            logger.info("whatsapp_opportunistic_dispatch", **counts)
+        return counts
+    except Exception as exc:  # noqa: BLE001 - must never break webhook handling
+        logger.warning("whatsapp_opportunistic_dispatch_failed", error=str(exc))
+        return None

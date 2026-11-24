@@ -111,6 +111,14 @@ export type ProviderStatus = {
   }>;
 };
 
+export type LiveAgentState = {
+  active: boolean;
+  reason: string | null;
+  started_at: string | null;
+  last_team_reply_at: string | null;
+  agent: string | null;
+};
+
 export type ConversationItem = {
   id: string;
   external_user_id: string;
@@ -118,6 +126,10 @@ export type ConversationItem = {
   channel: string;
   last_message_at: string | null;
   is_open: boolean;
+  customer_name?: string | null;
+  live_agent?: LiveAgentState;
+  reply_window_open?: boolean;
+  reply_window_closes_at?: string | null;
 };
 
 export type ConversationMessage = {
@@ -126,6 +138,8 @@ export type ConversationMessage = {
   body: string;
   channel: string;
   created_at: string;
+  sent_by?: string | null;
+  automated?: boolean | null;
 };
 
 export type KnowledgeDocument = {

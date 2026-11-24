@@ -97,19 +97,23 @@ TEMPLATES: dict[str, WhatsAppTemplate] = {
         ),
         WhatsAppTemplate(
             kind="cod_order_confirm",
-            name="rootellect_cod_order_confirm_v2",
+            # v2 was re-classified as Marketing by Meta (higher cost, blocked for
+            # some users with error 131049). v3 is plain order wording, no header,
+            # submitted as Utility on 24 Nov 2026. v1 has no header, so it is the
+            # safe fallback while v3 is in review.
+            name="rootellect_cod_order_confirm_v3",
             legacy_name="rootellect_cod_order_confirm_v1",
-            header_image=f"{IMG}/cod-confirm.jpg",
+            header_image=None,
             category="UTILITY",
             consent="transactional",
             immediate=True,
             body=(
-                "Hi {{1}}, your Rootellect order *{{2}}* has been placed with Cash on Delivery.\n\n"
-                "Amount payable on delivery: ₹{{3}}.\n\n"
-                "Please confirm the order using the button below so we can dispatch it. To cancel it, tap *Cancel order*."
+                "Hi {{1}}, we've received your Rootellect order *{{2}}* (Cash on Delivery). "
+                "Amount payable on delivery: ₹{{3}}. "
+                "Please confirm this order using the button below so we can dispatch it."
             ),
-            body_examples=("Ananya", "RT-10482", "1,299"),
-            footer=STOP_FOOTER,
+            body_examples=("Priya", "RT10245", "799"),
+            footer=None,
             buttons=(
                 TemplateButton("QUICK_REPLY", "Confirm order"),
                 TemplateButton("QUICK_REPLY", "Cancel order"),
@@ -251,6 +255,20 @@ TEMPLATES: dict[str, WhatsAppTemplate] = {
             body_examples=("Ananya", "Rootellect Mind Calm"),
             footer=STOP_FOOTER,
             buttons=(TemplateButton("URL", "Complete order", url_prefix=f"{SITE}/cart", dynamic=False),),
+        ),
+        WhatsAppTemplate(
+            kind="team_alert",
+            # Sent to the Rootellect team's own phones (not customers) when a chat
+            # needs a person and the team member has not messaged us in 24 hours.
+            name="rootellect_team_alert_v1",
+            category="UTILITY",
+            consent="transactional",
+            immediate=True,
+            body=(
+                "New customer request on Rootellect WhatsApp. Customer: {{1}} ({{2}}). "
+                "Reason: {{3}}. Message: {{4}}. Please reply from the MarketingAI dashboard."
+            ),
+            body_examples=("Priya", "+91 98765 43210", "Asked to talk to a person", "Which product is right for stress?"),
         ),
     )
 }

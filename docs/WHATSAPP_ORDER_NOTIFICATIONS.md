@@ -91,3 +91,41 @@ Every event is idempotent: each message has a key such as `RT-1001:order_shipped
 - `POST /api/v1/whatsapp/contacts/opt-in`
 - `POST /api/v1/whatsapp/broadcasts`: `dry_run` defaults to `true` and only counts recipients
 - `POST /api/v1/whatsapp/dispatch`: send due messages now
+
+## Live agent handover
+
+Customers can reach a person at any time. The bot hands a WhatsApp chat to the team when:
+
+- the customer asks for a person ("talk to a person", "customer care", "call me", "/help", "kisi se baat karni hai"),
+- the customer sends a cart from the WhatsApp catalog (they get an item summary + checkout link first),
+- the bot cannot answer safely (low confidence, AI unavailable, health/medicine questions).
+
+What happens:
+
+1. The bot pauses for that customer only. Everyone else keeps getting bot replies.
+2. The customer is told a person is coming. Outside support hours (10 AM – 7 PM, Monday to Saturday, IST)
+   they are told when the team will reply.
+3. Every number in `LIVE_AGENT_TEAM_PHONES` gets a WhatsApp alert from the business number with the customer's
+   name, number, reason and message. If a team member hasn't messaged the business number in the last 24 hours,
+   WhatsApp only allows a template, so the `rootellect_team_alert_v1` template is sent instead.
+   Tip: each team member can send "hi" to the business number once a day to keep alerts free-form.
+   Messages from team numbers are never answered by the bot.
+4. The team replies from **Dashboard → Conversations**. Chats waiting for a person show **Needs team** at the top.
+   Replies only work within 24 hours of the customer's last message (a WhatsApp rule).
+5. The bot resumes when the team taps **Resume bot**, or on its own 24 hours after the last team reply.
+   **Take over chat** pauses the bot for any customer manually.
+
+Settings (backend env): `LIVE_AGENT_TEAM_PHONES` (comma-separated, with country code, e.g. `919876543210,919812345678`),
+`LIVE_AGENT_HOURS_START=10`, `LIVE_AGENT_HOURS_END=19`, `LIVE_AGENT_DAYS=0,1,2,3,4,5` (0 = Monday),
+`LIVE_AGENT_IDLE_HOURS=24`, `LIVE_AGENT_ENABLED=true`, `FRONTEND_URL` (dashboard link in alerts).
+
+## Scheduled message safeguards
+
+- Scheduled messages are also sent whenever a WhatsApp webhook arrives (at most every 10 minutes), so reminders
+  flow on Vercel without a worker. For full reliability also set the GitHub Actions scheduler
+  (`.github/workflows/whatsapp-dispatch.yml`): add the repository secret `MARKETINGAI_CRON_SECRET` (same value as the
+  backend's `CRON_SECRET`) and the repository variable `MARKETINGAI_BACKEND_URL`.
+- A scheduled message more than 6 hours late (cart reminders: 60 minutes) is skipped as `stale_too_late`
+  instead of being sent at an odd time.
+- Follow-ups for `TEST-*` orders (from `scripts/send_test_order_events.py`) are skipped as `test_order`.
+  Immediate messages (order confirmed, COD) still go out so the test journey can be checked.
