@@ -220,7 +220,7 @@ export const api = {
   campaignEvents: (id: string) => fetchJson<CampaignEvent[]>(`/campaigns/${id}/events`),
   testCampaign: (payload: { text: string; platform?: string; post_id?: string | null }) =>
     postJson<CampaignTestResult>("/campaigns/test", payload),
-  conversations: () => getJson<ConversationItem[]>("/conversations", []),
+  conversations: () => getJson<ConversationItem[]>("/conversations?limit=200", []),
   conversationMessages: (id: string) => getJson<ConversationMessage[]>(`/conversations/${id}/messages`, []),
   replyToConversation: (id: string, text: string) =>
     postJson<{ ok: boolean; live_agent: LiveAgentState }>(`/conversations/${id}/reply`, { text }),
