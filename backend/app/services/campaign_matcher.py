@@ -12,7 +12,9 @@ from app.services.normalization import normalize_comment_text
 def instagram_shortcode(value: str | None) -> str | None:
     if not value:
         return None
-    match = re.search(r"instagram\.com/(?:p|reel|tv)/([^/?#]+)/?", value)
+    # Accept /p/, /reel/, /reels/ (what the Instagram app shares) and /tv/ links,
+    # optionally prefixed by a username: instagram.com/<user>/reel/<code>/
+    match = re.search(r"instagram\.com/(?:[A-Za-z0-9_.]+/)?(?:p|reels?|tv)/([A-Za-z0-9_-]+)", value)
     if match:
         return match.group(1).strip()
     return None
