@@ -115,7 +115,7 @@ What happens:
 5. The bot resumes when the team taps **Resume bot**, or on its own 24 hours after the last team reply.
    **Take over chat** pauses the bot for any customer manually.
 
-Settings (backend env): `LIVE_AGENT_TEAM_PHONES` (comma-separated, with country code, e.g. `919876543210,919812345678`),
+Settings (backend env): `LIVE_AGENT_TEAM_PHONES` (comma-separated, with country code; default `919818422865`),
 `LIVE_AGENT_HOURS_START=10`, `LIVE_AGENT_HOURS_END=19`, `LIVE_AGENT_DAYS=0,1,2,3,4,5` (0 = Monday),
 `LIVE_AGENT_IDLE_HOURS=24`, `LIVE_AGENT_ENABLED=true`, `FRONTEND_URL` (dashboard link in alerts).
 
