@@ -55,14 +55,15 @@ class OpenAIDecisionClient:
                 decision = AIDecision.model_validate(json.loads(response.output_text or "{}"))
             decision = self._apply_metadata_and_reply_rules(context, decision)
         except Exception as exc:
+            # Fall back to the curated deterministic replies rather than going
+            # silent: they carry their own confidence and safety escalation.
             ai_input["mode"] = "fallback_after_openai_error"
-            decision = self._fallback_decision(context).model_copy(
-                update={
-                    "send_decision": SendDecision.queue_for_review,
-                    "escalation_reason": f"OpenAI unavailable or invalid output: {exc}",
-                    "confidence": 0.45,
-                }
-            )
+            ai_input["openai_error"] = str(exc)[:500]
+            decision = self._fallback_decision(context)
+            if decision.send_decision != SendDecision.send:
+                decision = decision.model_copy(
+                    update={"escalation_reason": f"OpenAI unavailable or invalid output: {exc}"[:500]}
+                )
 
         latency_ms = int((time.perf_counter() - started) * 1000)
         return decision, latency_ms, ai_input
@@ -158,7 +159,7 @@ class OpenAIDecisionClient:
         source: str,
     ) -> AIDecision:
         send_decision = (
-            SendDecision.send if confidence >= self.settings.ai_min_autosend_confidence else SendDecision.queue_for_review
+            SendDecision.send if confidence >= self._autosend_threshold(context) else SendDecision.queue_for_review
         )
         public_reply = "" if not context.allow_public_reply else self._public_reply(selected_product)
         private_dm = reply if context.allow_dm or context.channel == "whatsapp_message" else ""
@@ -197,8 +198,19 @@ class OpenAIDecisionClient:
         if source == "none":
             source = knowledge_source([item.source for item in context.retrieved_context if item.source])
 
+        send_decision = decision.send_decision
+        if (
+            context.channel == "whatsapp_message"
+            and send_decision == SendDecision.queue_for_review
+            and not decision.safety_flags
+            and decision.private_dm.strip()
+            and decision.confidence >= self._autosend_threshold(context)
+        ):
+            send_decision = SendDecision.send
+
         return decision.model_copy(
             update={
+                "send_decision": send_decision,
                 "selected_product": selected_product,
                 "user_intent": user_intent,
                 "reply_channel": context.channel,
@@ -211,6 +223,11 @@ class OpenAIDecisionClient:
                 else None,
             }
         )
+
+    def _autosend_threshold(self, context: AIRequestContext) -> float:
+        if context.channel == "whatsapp_message":
+            return self.settings.ai_min_autosend_confidence_whatsapp
+        return self.settings.ai_min_autosend_confidence
 
     @staticmethod
     def _purchase_intent(text: str) -> float:

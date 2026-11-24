@@ -81,3 +81,49 @@ async def test_fallback_ai_explains_rootellect_shortly():
     assert decision.selected_product is None
     assert "clean vegan wellness brand" in decision.private_dm
     assert decision.private_dm.count("?") == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Hello",
+        "Hi Rootellect! I'd like to know more about your wellness products and find out which one is right for me.",
+        "Hi which prodcut help me with stress",
+    ],
+)
+async def test_whatsapp_greetings_and_questions_get_a_reply(text: str):
+    client = OpenAIDecisionClient()
+    client.settings = client.settings.model_copy(update={"openai_api_key": None})
+    decision, _, _ = await client.generate_decision(AIRequestContext(text=text, channel="whatsapp_message"))
+    assert decision.send_decision == SendDecision.send
+    assert decision.private_dm
+
+
+@pytest.mark.asyncio
+async def test_whatsapp_never_autosends_medical_escalations():
+    client = OpenAIDecisionClient()
+    client.settings = client.settings.model_copy(update={"openai_api_key": None})
+    decision, _, _ = await client.generate_decision(
+        AIRequestContext(text="Will this cure my PCOS permanently?", channel="whatsapp_message")
+    )
+    assert decision.send_decision != SendDecision.send
+
+
+@pytest.mark.asyncio
+async def test_openai_error_falls_back_to_curated_reply_instead_of_silence(monkeypatch):
+    client = OpenAIDecisionClient()
+    client.settings = client.settings.model_copy(update={"openai_api_key": "sk-test"})
+
+    class Boom:
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError("network down")
+
+    import openai
+
+    monkeypatch.setattr(openai, "AsyncOpenAI", Boom)
+    decision, _, ai_input = await client.generate_decision(
+        AIRequestContext(text="Hi which product helps with stress", channel="whatsapp_message")
+    )
+    assert ai_input["mode"] == "fallback_after_openai_error"
+    assert decision.send_decision == SendDecision.send and "Mind Calm" in decision.private_dm

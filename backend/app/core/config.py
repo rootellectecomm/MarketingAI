@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-5.4-mini"
     openai_embedding_model: str = "text-embedding-3-small"
     ai_min_autosend_confidence: float = 0.78
+    # WhatsApp chats are 1:1 with someone who messaged us first: a short helpful
+    # answer beats silence. Medical/safety escalations are never auto-sent.
+    ai_min_autosend_confidence_whatsapp: float = 0.65
     ai_low_confidence_escalation_threshold: float = 0.62
 
     whatsapp_phone_number_id: str | None = None
