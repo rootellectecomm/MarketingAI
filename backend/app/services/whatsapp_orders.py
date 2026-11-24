@@ -28,7 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings, get_settings
 from app.models.entities import Lead, Order, WhatsAppContact, WhatsAppNotification
 from app.services.provider_factory import get_whatsapp_provider
-from app.services.whatsapp_templates import WhatsAppTemplate, get_template
+from app.services.whatsapp_templates import WhatsAppTemplate, get_template, product_image
 
 logger = structlog.get_logger(__name__)
 
@@ -40,6 +40,9 @@ MAX_ATTEMPTS = 3
 # Meta error codes that will not succeed on retry.
 PERMANENT_ERROR_CODES = {131026, 131050, 131051, 132000, 132001, 132005, 132007, 132012, 132015, 132016, 133010}
 PENDING_STATUSES = ("scheduled", "retrying")
+# The new template version isn't usable yet (not approved, paused or disabled):
+# fall back to the previous approved version.
+TEMPLATE_UNAVAILABLE_CODES = {132001, 132015, 132016}
 SHIPMENT_KINDS = {
     "shipped": "order_shipped",
     "out_for_delivery": "out_for_delivery",
@@ -236,11 +239,16 @@ class WhatsAppOrderService:
         template_name: str | None = None,
         category: str | None = None,
         metadata: dict | None = None,
+        header_image: str | None = None,
     ) -> WhatsAppNotification | None:
         existing = await session.scalar(select(WhatsAppNotification).where(WhatsAppNotification.idempotency_key == key))
         if existing is not None:
             return None
         template = get_template(kind) if template_name is None else None
+        metadata = dict(metadata or {})
+        header = header_image or (template.header_image if template else None)
+        if header:
+            metadata["header_image"] = header
         notification = WhatsAppNotification(
             idempotency_key=key,
             phone=phone,
@@ -253,7 +261,7 @@ class WhatsAppOrderService:
             status="scheduled",
             scheduled_for=scheduled_for,
             attempts=0,
-            metadata_json=metadata or {},
+            metadata_json=metadata,
         )
         session.add(notification)
         await session.flush()
@@ -419,6 +427,7 @@ class WhatsAppOrderService:
         await self._queue_and_record(
             session, result, key=f"{number}:usage_guide", kind="usage_guide", phone=phone, order_external_id=number,
             body_params=[name, label], scheduled_for=self.at_local_time(delivered_at, 2, 10, 30),
+            header_image=_first_product_image(lines),
         )
         if meta.get("review_token"):
             await self._queue_and_record(
@@ -437,6 +446,7 @@ class WhatsAppOrderService:
                 order_external_id=number, body_params=[name, _product_label([first_out])],
                 button_params=[{"index": 0, "sub_type": "url", "value": first_out["slug"]}],
                 scheduled_for=self.at_local_time(delivered_at, days, 11, 0),
+                header_image=product_image(first_out["slug"]),
             )
 
     async def _handle_abandoned(self, session: AsyncSession, checkout: dict, now: datetime, result: EventResult) -> None:
@@ -453,6 +463,7 @@ class WhatsAppOrderService:
             body_params=[_first_name(contact.first_name), _product_label(items)],
             scheduled_for=self.next_send_time(now + timedelta(hours=1)),
             metadata={"cart_key": cart_key, "abandoned_at": now.isoformat()},
+            header_image=_first_product_image(items),
         )
 
     async def _handle_welcome(self, session: AsyncSession, customer: dict, now: datetime, result: EventResult) -> None:
@@ -575,7 +586,17 @@ class WhatsAppOrderService:
             row.status = "failed"
             row.error = "provider_cannot_send_templates"
             return False
-        response = await sender(row.phone, row.template_name, language, row.body_params or [], row.button_params or [])
+        header = (row.metadata_json or {}).get("header_image") if template is not None else None
+        response = await sender(
+            row.phone, row.template_name, language, row.body_params or [], row.button_params or [], header_image=header
+        )
+        if not response.ok and template and template.legacy_name and _error_code(response.response) in TEMPLATE_UNAVAILABLE_CODES:
+            # New version still in Meta review: send the approved previous version (no image header).
+            response = await sender(
+                row.phone, template.legacy_name, language, row.body_params or [], row.button_params or [], header_image=None
+            )
+            if response.ok:
+                row.metadata_json = {**(row.metadata_json or {}), "sent_with_template": template.legacy_name}
         if response.ok:
             row.status = "sent"
             row.provider_message_id = response.provider_action_id or None
@@ -729,6 +750,14 @@ class WhatsAppOrderService:
         ).scalars().all()
         for lead in leads:
             lead.whatsapp_opt_in = value
+
+
+def _first_product_image(lines: list[dict]) -> str | None:
+    for line in lines:
+        image = product_image(str(line.get("slug") or line.get("title") or ""))
+        if image:
+            return image
+    return None
 
 
 def _template_for(row: WhatsAppNotification) -> WhatsAppTemplate | None:
