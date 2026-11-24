@@ -14,6 +14,7 @@ from app.models.entities import (
     AiLog,
     AnalyticsEvent,
     Campaign,
+    CampaignEvent,
     Comment,
     Conversation,
     IntentAnalysis,
@@ -24,14 +25,15 @@ from app.models.entities import (
     SocialEvent,
     WebhookLog,
 )
-from app.models.enums import EventStatus, EventType, ModerationAction, SendDecision
+from app.models.enums import ActionStatus, EventStatus, EventType, ModerationAction, SendDecision
 from app.moderation.engine import ModerationEngine
-from app.schemas.ai import AIRequestContext, ThreadMessage
+from app.schemas.ai import AIDecision, AIRequestContext, ThreadMessage
 from app.schemas.social import NormalizedEvent
 from app.services.action_engine import ActionContext, ActionEngine
 from app.services.campaign_conversion import CampaignConversionService
 from app.services.campaign_matcher import CampaignMatcher
 from app.services.giveaway_processor import GiveawayProcessor
+from app.services.instagram_support import InstagramSupportRouter
 from app.services.lead_scoring import LeadScoringService
 from app.services.live_agent import LiveAgentService, team_phones, wants_human
 from app.services.meta_oauth import get_active_page_access_token
@@ -56,6 +58,7 @@ class EventProcessor:
         self.campaign_conversion = CampaignConversionService()
         self.giveaways = GiveawayProcessor()
         self.live_agent = LiveAgentService()
+        self.support = InstagramSupportRouter()
 
     async def process(
         self,
@@ -161,6 +164,14 @@ class EventProcessor:
             return
 
         if await self.giveaways.handle_comment(session, event, comment, lead):
+            event.status = EventStatus.processed
+            return
+
+        if (
+            normalized.event_type == EventType.instagram_dm
+            and self.ai.settings.instagram_support_automation_enabled
+            and await self._handle_instagram_support(session, event, conversation, lead, text, matched_campaigns)
+        ):
             event.status = EventStatus.processed
             return
 
@@ -441,6 +452,138 @@ class EventProcessor:
             "live_agent": "handed_over",
             "handover_reason": decision.escalation_reason,
         }
+    async def _handle_instagram_support(
+        self,
+        session: AsyncSession,
+        event: SocialEvent,
+        conversation: Conversation,
+        lead: Lead,
+        text: str,
+        matched_campaigns: list[Campaign],
+    ) -> bool:
+        """Instant replies for Instagram DM issues/queries and campaign keywords."""
+        last_outbound = await session.scalar(
+            select(Message.body)
+            .where(Message.conversation_id == conversation.id, Message.direction == "outbound")
+            .order_by(Message.created_at.desc())
+            .limit(1)
+        )
+        support = await self.support.handle(session, text, lead, matched_campaigns, last_outbound=last_outbound)
+        if not support:
+            return False
+
+        intent_map = {
+            "order_status": "shipping_question",
+            "refund_return": "refund_question",
+            "damaged_wrong": "complaint",
+            "payment": "complaint",
+            "human": "complaint",
+            "side_effect": "medical_risk",
+            "campaign_keyword": "purchase_intent",
+            "discount": "price_question",
+            "cod": "shipping_question",
+        }
+        intent = intent_map.get(support.topic, "general")
+        decision = AIDecision(
+            intent=intent,
+            sentiment="negative" if support.needs_human and support.topic != "human" else "neutral",
+            urgency="high" if support.needs_human else "low",
+            purchase_intent=0.8 if support.topic == "campaign_keyword" else 0.2,
+            confidence=0.95,
+            safety_flags=["medical_risk"] if support.topic == "side_effect" else [],
+            moderation_action=ModerationAction.escalate if support.needs_human else ModerationAction.allow,
+            private_dm=support.reply,
+            user_intent=support.topic,
+            reply_channel=event.event_type.value,
+            used_knowledge_source="support_rules" if support.topic != "campaign_keyword" else "campaign",
+            escalation_reason=f"Instagram support: {support.topic}" if support.needs_human else None,
+            send_decision=SendDecision.send,
+        )
+
+        tags = set(lead.tags or [])
+        tags.update(support.tags)
+        if support.needs_human:
+            tags.add("needs_human")
+            conversation.is_open = True
+        lead.tags = sorted(tags)
+
+        campaign = None
+        if support.campaign_id:
+            campaign = next((c for c in matched_campaigns if c.id == support.campaign_id), None)
+            if campaign:
+                lead.source_campaign_id = campaign.id
+                lead.product_interest = lead.product_interest or campaign.product_name
+
+        page_access_token = await get_active_page_access_token(session)
+        provider = get_instagram_provider(access_token=page_access_token)
+        attempts = await self.actions.execute(
+            session,
+            provider,
+            event,
+            None,
+            decision,
+            ActionContext(conversation=conversation, lead=lead, channel=event.event_type.value),
+        )
+        sent = any(attempt.status == ActionStatus.sent for attempt in attempts)
+
+        if campaign:
+            session.add(
+                CampaignEvent(
+                    campaign_id=campaign.id,
+                    platform="instagram",
+                    source_type="dm",
+                    user_id=lead.external_user_id,
+                    username=lead.username,
+                    message_id=event.provider_event_id,
+                    matched_keyword=support.matched_keyword,
+                    user_text=text,
+                    ai_intent="purchase_intent",
+                    lead_score=lead.score,
+                    status="dm_sent" if sent else "send_error",
+                    metadata_json={"logs": ["dm_keyword_matched", "dm_sent" if sent else "send_error"]},
+                )
+            )
+            if sent:
+                lead.conversion_stage = "dm_sent"
+        if support.needs_human:
+            session.add(
+                ModerationLog(
+                    social_event_id=event.id,
+                    action=ModerationAction.escalate,
+                    flags=decision.safety_flags or [support.topic],
+                    confidence=0.95,
+                    notes=f"Instagram DM needs a team reply: {support.topic}",
+                )
+            )
+        session.add(
+            AiLog(
+                social_event_id=event.id,
+                model="instagram_support_rules",
+                prompt_version=PROMPT_VERSION,
+                input_json={"mode": "support_rules", "text": text, "topic": support.topic},
+                output_json=decision.model_dump(mode="json"),
+                latency_ms=0,
+                confidence=decision.confidence,
+                blocked=False,
+            )
+        )
+        session.add(
+            AnalyticsEvent(
+                event_name="instagram_support_reply",
+                entity_type="social_event",
+                entity_id=event.id,
+                properties={
+                    "topic": support.topic,
+                    "needs_human": support.needs_human,
+                    "sent": sent,
+                    "order_number": support.order_number,
+                    "campaign_id": support.campaign_id,
+                    "matched_keyword": support.matched_keyword,
+                },
+            )
+        )
+        logger.info("instagram_support_reply", event_id=event.id, topic=support.topic, sent=sent)
+        return True
 
     async def _apply_campaign_dm_followup(
         self,
