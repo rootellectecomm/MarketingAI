@@ -65,7 +65,9 @@ TOPIC_TERMS: dict[str, tuple[str, ...]] = {
     "results_timeline": ("how long", "kitne din", "when will i see", "results kab", "how many days"),
 }
 
-NEEDS_HUMAN_TOPICS = {"side_effect", "damaged_wrong", "payment", "refund_return", "human"}
+GENERIC_KEYWORDS = {"price", "link", "buy", "cost", "details", "info", "dm", "order", "kitne ka", "rate"}
+
+NEEDS_HUMAN_TOPICS ={"side_effect", "damaged_wrong", "payment", "refund_return", "human"}
 
 
 @dataclass(slots=True)
@@ -292,10 +294,19 @@ class InstagramSupportRouter:
     def _keyword_reply(self, text: str, matched_campaigns: list[Campaign]) -> SupportReply | None:
         """Campaign keyword in a DM (e.g. "price", "link", "stress") → that campaign's DM + link."""
         lowered = text.lower()
+        candidates: list[tuple[Campaign, str]] = []
         for campaign in matched_campaigns:
             keyword = self.matcher.matched_keyword(campaign, lowered)
-            if not keyword or not campaign.dm_enabled:
-                continue
+            if keyword and campaign.dm_enabled:
+                candidates.append((campaign, keyword))
+        # Prefer a product-specific keyword ("stress", "pcos"). A generic one
+        # ("price", "link") only counts when the message names a product, so a
+        # PCOS price question never gets the Mind Calm link.
+        specific = [item for item in candidates if item[1] not in GENERIC_KEYWORDS]
+        if not specific and candidates:
+            product = route_product(text)
+            specific = [item for item in candidates if product and item[0].product_name == product.name]
+        for campaign, keyword in specific[:1]:
             from app.services.campaign_conversion import CampaignConversionService
 
             link = campaign.product_link or ""

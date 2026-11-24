@@ -94,7 +94,10 @@ async def test_campaign_keyword_in_dm_sends_campaign_link():
         whatsapp_link="https://wa.me/918679008311",
         metadata_json={},
     )
-    reply = await InstagramSupportRouter().handle(FakeSession(), "price please", None, [campaign])
+    # A generic keyword alone is not enough to pick a product...
+    assert await InstagramSupportRouter().handle(FakeSession(), "price please", None, [campaign]) is None
+    # ...but it is once the message names the product.
+    reply = await InstagramSupportRouter().handle(FakeSession(), "price for mind calm?", None, [campaign])
     assert reply.topic == "campaign_keyword"
     assert reply.matched_keyword == "price"
     assert "rootellect.com/products/mind-calm" in reply.reply
@@ -104,3 +107,16 @@ async def test_campaign_keyword_in_dm_sends_campaign_link():
 @pytest.mark.asyncio
 async def test_unrecognised_message_falls_through_to_ai():
     assert await InstagramSupportRouter().handle(FakeSession(), "hello there", None, []) is None
+
+
+@pytest.mark.asyncio
+async def test_specific_keyword_in_dm_matches_campaign():
+    campaign = Campaign(
+        id="c2", name="PCOS", status="active", product_name="PCOS Support",
+        product_link="https://www.rootellect.com/products/pcos-pcod-support",
+        keyword_triggers=["pcos", "price"], dm_template="", public_reply_template="Sent you the details in DM.",
+        public_reply_enabled=True, platform="both", dm_enabled=True, whatsapp_followup_enabled=False, metadata_json={},
+    )
+    reply = await InstagramSupportRouter().handle(FakeSession(), "PCOS", None, [campaign])
+    assert reply.matched_keyword == "pcos"
+    assert "pcos-pcod-support" in reply.reply
