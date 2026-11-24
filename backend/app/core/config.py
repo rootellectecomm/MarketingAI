@@ -102,7 +102,8 @@ class Settings(BaseSettings):
 
     # Live-agent handover (WhatsApp). Team phones: comma-separated, with country code.
     live_agent_enabled: bool = True
-    live_agent_team_phones: str | None = None
+    # Default team alert number; LIVE_AGENT_TEAM_PHONES on the backend overrides it.
+    live_agent_team_phones: str | None = "919818422865"
     live_agent_alert_template: str | None = "rootellect_team_alert_v1"
     live_agent_hours_start: int = 10
     live_agent_hours_end: int = 19
