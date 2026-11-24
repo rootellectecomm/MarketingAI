@@ -141,8 +141,10 @@ PHONE_FIELDS = (
 async def whatsapp_phone_status(request: Request, session: AsyncSession = Depends(get_session)) -> dict:
     """Report the sending number's Cloud API status; optionally register it.
 
-    Body: ``{}`` for status only, or ``{"register_pin": "123456"}`` to register the
-    number for the Cloud API (the PIN becomes / must match its two-step verification PIN).
+    Body: ``{}`` for status only, ``{"register_pin": "123456"}`` to register the
+    number for the Cloud API (the PIN becomes / must match its two-step verification PIN),
+    ``{"subscribe": true}`` to subscribe this app to the WhatsApp Business Account so
+    incoming messages reach the webhook. The response lists the subscribed apps.
     """
     if not await _cron_authorized(request):
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -168,6 +170,20 @@ async def whatsapp_phone_status(request: Request, session: AsyncSession = Depend
                 f"{base}/register", json={"messaging_product": "whatsapp", "pin": pin}, headers=headers
             )
             result["register"] = registered.json() if registered.content else {"status_code": registered.status_code}
+
+        # Incoming customer messages (replies, button taps, STOP) only reach
+        # /webhooks/meta/whatsapp if this app is subscribed to the WhatsApp
+        # Business Account. {"subscribe": true} subscribes it.
+        waba_id = get_settings().whatsapp_business_account_id
+        if waba_id:
+            apps_url = f"https://graph.facebook.com/{get_settings().meta_graph_version}/{waba_id}/subscribed_apps"
+            if options.get("subscribe") is True:
+                subscribed = await client.post(apps_url, headers=headers)
+                result["subscribe"] = subscribed.json() if subscribed.content else {"status_code": subscribed.status_code}
+            apps = await client.get(apps_url, headers=headers)
+            listed = (apps.json() if apps.content else {}).get("data") or []
+            app_rows = [(a.get("whatsapp_business_api_data") or {}) for a in listed]
+            result["subscribed_apps"] = [{"id": row.get("id"), "name": row.get("name")} for row in app_rows]
     return {"ok": True, **result}
 
 
