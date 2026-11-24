@@ -39,7 +39,9 @@ class ModerationEngine:
             flags.append("spam")
         if _matches(MEDICAL_RISK_PATTERNS, lowered):
             flags.append("medical_risk")
-        if len(lowered.strip()) <= 1:
+        stripped = lowered.strip()
+        # A single digit is a menu choice ("Reply with 1-4"), not noise.
+        if not stripped or (len(stripped) == 1 and not stripped.isdigit()):
             flags.append("empty_or_too_short")
 
         if "abuse" in flags:

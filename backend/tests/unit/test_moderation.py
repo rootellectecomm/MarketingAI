@@ -21,3 +21,12 @@ def test_moderation_allows_normal_product_question():
 
     assert result.action == ModerationAction.allow
 
+
+
+def test_menu_number_reply_is_allowed():
+    from app.models.enums import ModerationAction
+    from app.moderation.engine import ModerationEngine
+
+    for choice in ("1", "2", "3", "4"):
+        assert ModerationEngine().evaluate(choice).action == ModerationAction.allow
+    assert "empty_or_too_short" in ModerationEngine().evaluate("").flags
