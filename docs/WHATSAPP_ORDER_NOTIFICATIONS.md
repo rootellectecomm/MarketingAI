@@ -15,6 +15,7 @@ Automated WhatsApp messages for rootellect.com orders, sent through the WhatsApp
 | How to take it | Delivered + 2 days, 10:30 IST | Scheduled | Marketing (re-classified by Meta) | Marketing opt-ins only |
 | Feedback request | Delivered + 14 days, 11:00 IST | Scheduled | Utility | Customers with a review link |
 | Reorder reminder | 5 days before the first product runs out | Scheduled | Marketing | Marketing opt-ins only |
+| Welcome + first-order voucher | `customer.welcome` (new account, WhatsApp opt-in ticked) | Next send window | Marketing | Opted-in new customers |
 | Cart reminder | `checkout.abandoned` + 1 hour | Scheduled | Marketing | Marketing opt-ins only, skipped if they bought |
 | Offer broadcasts | `POST /api/v1/whatsapp/broadcasts` | You choose | Marketing | Marketing opt-ins only |
 
@@ -61,7 +62,7 @@ Headers: `X-Rootellect-Timestamp: <unix seconds>`, `X-Rootellect-Signature: sha2
 
 ```json
 {
-  "type": "order.confirmed | shipment.updated | order.cancelled | checkout.abandoned",
+  "type": "order.confirmed | shipment.updated | order.cancelled | checkout.abandoned | customer.welcome",
   "event_id": "order.confirmed:RT-1001",
   "occurred_at": "2026-11-02T05:30:00Z",
   "order": {
@@ -75,6 +76,7 @@ Headers: `X-Rootellect-Timestamp: <unix seconds>`, `X-Rootellect-Signature: sha2
     "lines": [{ "title": "Mind Calm", "quantity": 2, "slug": "mind-calm", "supply_days": 60 }]
   },
   "shipment": { "status": "shipped | out_for_delivery | delivered | delivery_failed", "courier": "Delhivery", "awb": "123", "delivered_at": "…" },
+  "customer": { "customer_code": "RT-0042", "first_name": "Meera", "phone": "+91…", "whatsapp_marketing_opt_in": true, "voucher": { "code": "WELCOME…", "percent_off": 10, "expires_on": "8 Dec 2026" } },
   "checkout": { "cart_key": "abc", "customer": { "first_name": "Ananya", "phone": "+91…" }, "items": [{ "title": "Mind Calm" }] }
 }
 ```

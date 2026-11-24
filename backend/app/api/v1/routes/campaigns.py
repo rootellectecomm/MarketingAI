@@ -44,7 +44,7 @@ async def _ensure_default_campaign(session: AsyncSession) -> None:
             product_link="https://www.rootellect.com/products/mind-calm",
             followup_link="https://www.rootellect.com/products/mind-calm",
             whatsapp_link=(
-                "https://wa.me/918679508311?text=Hi%20Rootellect%2C%20I%20want%20to%20know%20about%20Mind%20Calm"
+                "https://wa.me/918679008311?text=Hi%20Rootellect%2C%20I%20want%20to%20know%20about%20Mind%20Calm"
             ),
             product_focus=["Mind Calm"],
             keyword_triggers=["stress", "sleep", "overthinking", "mind calm", "link", "price", "tired", "brain fog"],

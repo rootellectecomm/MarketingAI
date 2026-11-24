@@ -48,7 +48,7 @@ const PRODUCT_OPTIONS = [
 ];
 
 const DEFAULT_WHATSAPP_LINK =
-  "https://wa.me/918679508311?text=Hi%20Rootellect%2C%20I%20want%20to%20know%20about%20Mind%20Calm";
+  "https://wa.me/918679008311?text=Hi%20Rootellect%2C%20I%20want%20to%20know%20about%20Mind%20Calm";
 
 export function CampaignForm() {
   const queryClient = useQueryClient();
@@ -87,7 +87,7 @@ export function CampaignForm() {
     setWhatsappLink(
       next.name === "Mind Calm"
         ? DEFAULT_WHATSAPP_LINK
-        : `https://wa.me/918679508311?text=Hi%20Rootellect%2C%20I%20want%20to%20know%20about%20${encodeURIComponent(next.name)}`
+        : `https://wa.me/918679008311?text=Hi%20Rootellect%2C%20I%20want%20to%20know%20about%20${encodeURIComponent(next.name)}`
     );
   }
 
