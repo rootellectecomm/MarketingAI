@@ -218,7 +218,7 @@ class OpenAIDecisionClient:
 
         send_decision = decision.send_decision
         if (
-            context.channel == "whatsapp_message"
+            context.channel in {"whatsapp_message", "instagram_dm"}
             and send_decision == SendDecision.queue_for_review
             and not decision.safety_flags
             and decision.private_dm.strip()

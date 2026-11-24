@@ -72,6 +72,9 @@ class Settings(BaseSettings):
     # "selected_posts": Instagram comments only get automatic replies/DMs on posts
     # you picked (a campaign targeting the post, or a giveaway). "all_posts": old behaviour.
     instagram_comment_scope: str = "selected_posts"
+    # Instant rule-based replies for Instagram DM issues (orders, refunds, damaged
+    # items...) and campaign keywords, before the AI step. Mirrors WhatsApp.
+    instagram_support_automation_enabled: bool = True
 
     shopify_webhook_secret: str | None = None
     shopify_store_domain: str | None = None

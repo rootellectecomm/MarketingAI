@@ -145,11 +145,11 @@ export function CampaignList() {
             <div className="mt-4 grid gap-3 rounded-md border border-[var(--border)] p-3 text-sm md:grid-cols-4">
               <div>
                 <div className="text-xs text-[var(--muted-foreground)]">Matched comments</div>
-                <div className="font-medium">{selectedId === campaign.id ? matched : "Select"}</div>
+                <div className="font-medium">{selectedId === campaign.id ? matched : "— (View activity)"}</div>
               </div>
               <div>
                 <div className="text-xs text-[var(--muted-foreground)]">DMs sent</div>
-                <div className="font-medium">{selectedId === campaign.id ? dmSent : "Select"}</div>
+                <div className="font-medium">{selectedId === campaign.id ? dmSent : "—"}</div>
               </div>
               <div>
                 <div className="text-xs text-[var(--muted-foreground)]">Send channels</div>
