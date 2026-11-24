@@ -10,6 +10,7 @@ from app.api.v1.routes import (
     dashboard,
     funnels,
     giveaways,
+    instagram_posts,
     knowledge,
     leads,
     logs,
@@ -29,6 +30,7 @@ api_router.include_router(conversations.router)
 api_router.include_router(leads.router)
 api_router.include_router(campaigns.router)
 api_router.include_router(giveaways.router)
+api_router.include_router(instagram_posts.router)
 api_router.include_router(knowledge.router)
 api_router.include_router(funnels.router)
 api_router.include_router(content.router)

@@ -66,6 +66,9 @@ class Settings(BaseSettings):
     whatsapp_opt_in_template_name: str = "rootellect_followup"
     rootellect_whatsapp_number: str = "918679008311"
     rootellect_whatsapp_link: str = "https://wa.me/918679008311"
+    # "selected_posts": Instagram comments only get automatic replies/DMs on posts
+    # you picked (a campaign targeting the post, or a giveaway). "all_posts": old behaviour.
+    instagram_comment_scope: str = "selected_posts"
 
     shopify_webhook_secret: str | None = None
     shopify_store_domain: str | None = None

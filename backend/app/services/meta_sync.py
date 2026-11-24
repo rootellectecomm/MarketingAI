@@ -30,12 +30,7 @@ class MetaSyncService:
     def __init__(self) -> None:
         self.settings = get_settings()
 
-    async def sync_recent_comments(
-        self,
-        session: AsyncSession,
-        media_limit: int = 25,
-        comments_per_media: int = 25,
-    ) -> dict:
+    async def active_account_token(self, session: AsyncSession) -> tuple[InstagramAccount, str]:
         account = await session.scalar(
             select(InstagramAccount).where(InstagramAccount.is_active.is_(True)).order_by(InstagramAccount.updated_at.desc())
         )
@@ -63,7 +58,28 @@ class MetaSyncService:
                 ),
             )
 
-        access_token = decrypt_secret(credential.encrypted_access_token)
+        return account, decrypt_secret(credential.encrypted_access_token)
+
+    async def list_recent_media(self, session: AsyncSession, limit: int = 24) -> list[dict]:
+        """Recent posts/reels on the connected Instagram account, newest first."""
+        account, access_token = await self.active_account_token(session)
+        async with httpx.AsyncClient(timeout=30) as client:
+            media = await self._get_json(
+                client,
+                f"{account.ig_user_id}/media",
+                access_token,
+                fields="id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,comments_count",
+                limit=max(1, min(limit, 50)),
+            )
+        return [item for item in media.get("data", []) if item.get("id")]
+
+    async def sync_recent_comments(
+        self,
+        session: AsyncSession,
+        media_limit: int = 25,
+        comments_per_media: int = 25,
+    ) -> dict:
+        account, access_token = await self.active_account_token(session)
         synced = 0
         updated = 0
         automation_processed = 0

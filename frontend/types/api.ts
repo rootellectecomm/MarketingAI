@@ -314,3 +314,29 @@ export type GiveawayDrawResult = {
   winner_ids: string[];
   message: string;
 };
+
+export interface InstagramPostCampaignLink {
+  id: string;
+  name: string;
+  status: string;
+  keywords: string[];
+}
+
+export interface InstagramPost {
+  id: string;
+  caption: string;
+  media_type: string | null;
+  thumbnail_url: string | null;
+  permalink: string | null;
+  timestamp: string | null;
+  comments_count: number;
+  campaigns: InstagramPostCampaignLink[];
+  giveaway: string | null;
+  automated: boolean;
+}
+
+export interface InstagramPostsResponse {
+  scope: "selected_posts" | "all_posts" | string;
+  campaigns: Array<{ id: string; name: string; status: string }>;
+  posts: InstagramPost[];
+}
